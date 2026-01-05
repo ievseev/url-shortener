@@ -17,16 +17,16 @@ func NewStorage() *Repository {
 func (s *Repository) SaveURLPair(urlOrigin, urlShort string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.urlMap[urlOrigin] = urlShort
+	s.urlMap[urlShort] = urlOrigin
 
 	// for debug: log saved value: key and value
-	fmt.Printf("saved url pair: %s -> %s\n", urlOrigin, urlShort)
+	fmt.Printf("saved url pair: %s -> %s\n", urlShort, urlOrigin)
 
 	// пока без ошибок, но потребуются в будущем, при работе с реальным хранилищем
 	return nil
 }
 
-func (s *Repository) GetURLOrigin(urlShort string) (string, error) {
+func (s *Repository) GetOriginURL(urlShort string) (string, error) {
 	if result, ok := s.urlMap[urlShort]; ok {
 		return result, nil
 	}

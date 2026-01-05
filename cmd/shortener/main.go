@@ -5,8 +5,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/ievseev/url-shortener/internal/config"
-	createUrlPostHandler "github.com/ievseev/url-shortener/internal/handler/create_url_post"
+	expandUrlGetHandler "github.com/ievseev/url-shortener/internal/handler/expand_url_get"
+	shortenUrlPostHandler "github.com/ievseev/url-shortener/internal/handler/shorten_url_post"
 	urlRepo "github.com/ievseev/url-shortener/internal/repository/url"
 	urlService "github.com/ievseev/url-shortener/internal/service/url_shortener"
 )
@@ -32,17 +35,20 @@ func run() error {
 	urlServ := urlService.New(repository)
 
 	// create handlers
-	createUrlHandler := createUrlPostHandler.New(urlServ)
+	shortenUrlHandler := shortenUrlPostHandler.New(urlServ)
+	expandUrlHandler := expandUrlGetHandler.New(urlServ)
 
-	// register handlers
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/`, createUrlHandler.Handle)
+	// create router with chi
+	r := chi.NewRouter()
 
-	serverAddr := appConfig.Host + ":" + appConfig.Port
-	logger.Info("Starting HTTP server", "address", serverAddr)
+	// register routes
+	r.Post("/", shortenUrlHandler.Handle)
+	r.Get("/{id}", expandUrlHandler.Handle)
+
+	logger.Info("Starting HTTP server", "address", appConfig.AppAddress)
 
 	// start server - убираем обработку ошибки после запуска
-	err := http.ListenAndServe(serverAddr, mux)
+	err := http.ListenAndServe(appConfig.AppAddress, r)
 	// Если сервер упал, логируем и возвращаем ошибку
 	logger.Error("HTTP server stopped", "error", err)
 
@@ -59,7 +65,7 @@ func setupLogger() *slog.Logger {
 	handler := slog.NewJSONHandler(os.Stdout, opts)
 	logger := slog.New(handler)
 
-	// Устанавливаем как глобальный логгер (опционально)
+	// Устанавливаем как глобальный логгер
 	slog.SetDefault(logger)
 
 	return logger

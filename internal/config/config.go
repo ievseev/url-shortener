@@ -8,7 +8,7 @@ import (
 )
 
 type AppConfig struct {
-	Host, Port string
+	AppAddress string
 }
 
 func Must() *AppConfig {
@@ -17,11 +17,7 @@ func Must() *AppConfig {
 		log.Fatal("Error loading .env file")
 	}
 
-	host := os.Getenv("APP_HOST")
-	port := os.Getenv("APP_PORT")
-
 	return &AppConfig{
-		Host: host,
-		Port: port,
+		AppAddress: os.Getenv("APP_ADDRESS"),
 	}
 }
