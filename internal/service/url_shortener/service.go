@@ -1,6 +1,7 @@
 package url_shortener
 
 import (
+	"context"
 	"crypto/md5"
 	"errors"
 	"fmt"
@@ -14,8 +15,8 @@ var (
 )
 
 type Repository interface {
-	SaveURLPair(urlOrigin, urlShort string) error
-	GetOriginURL(urlShort string) (string, error)
+	SaveURLPair(ctx context.Context, urlOrigin, urlShort string) error
+	GetOriginURL(ctx context.Context, urlShort string) (string, error)
 }
 
 type UrlService struct {
@@ -26,7 +27,7 @@ func New(repository Repository) *UrlService {
 	return &UrlService{Repository: repository}
 }
 
-func (u *UrlService) Shorten(url string) (string, error) {
+func (u *UrlService) Shorten(ctx context.Context, url string) (string, error) {
 	if !isURLValid(url) {
 		return "", ErrorInvalidURL
 	}
@@ -35,7 +36,7 @@ func (u *UrlService) Shorten(url string) (string, error) {
 	hash := md5.Sum([]byte(url))
 	shortURL := fmt.Sprintf("%x", hash)[:8]
 
-	err := u.Repository.SaveURLPair(url, shortURL)
+	err := u.Repository.SaveURLPair(ctx, url, shortURL)
 	if err != nil {
 		return "", err
 	}
@@ -43,8 +44,8 @@ func (u *UrlService) Shorten(url string) (string, error) {
 	return shortURL, nil
 }
 
-func (u *UrlService) Expand(shortURL string) (string, error) {
-	URL, err := u.Repository.GetOriginURL(shortURL)
+func (u *UrlService) Expand(ctx context.Context, shortURL string) (string, error) {
+	URL, err := u.Repository.GetOriginURL(ctx, shortURL)
 	if err != nil {
 		return URL, err
 	}

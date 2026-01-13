@@ -1,6 +1,7 @@
 package url
 
 import (
+	"context"
 	"fmt"
 	"sync"
 )
@@ -14,7 +15,7 @@ func NewStorage() *Repository {
 	return &Repository{urlMap: make(map[string]string)}
 }
 
-func (s *Repository) SaveURLPair(urlOrigin, urlShort string) error {
+func (s *Repository) SaveURLPair(ctx context.Context, urlOrigin, urlShort string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.urlMap[urlShort] = urlOrigin
@@ -26,7 +27,7 @@ func (s *Repository) SaveURLPair(urlOrigin, urlShort string) error {
 	return nil
 }
 
-func (s *Repository) GetOriginURL(urlShort string) (string, error) {
+func (s *Repository) GetOriginURL(ctx context.Context, urlShort string) (string, error) {
 	if result, ok := s.urlMap[urlShort]; ok {
 		return result, nil
 	}

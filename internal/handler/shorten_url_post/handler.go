@@ -1,8 +1,10 @@
+//go:generate mockgen -source=handler.go -destination=mocks/mock_url_shortener.go -package=mocks
+
 package shorten_url_post
 
 import (
+	"context"
 	"io"
-	"log/slog"
 	"mime"
 	"net/http"
 )
@@ -13,7 +15,7 @@ const (
 )
 
 type UrlShortener interface {
-	Shorten(url string) (string, error)
+	Shorten(ctx context.Context, url string) (string, error)
 }
 
 type ShortenUrlPostHandler struct {
@@ -25,18 +27,9 @@ func New(urlShortener UrlShortener) *ShortenUrlPostHandler {
 }
 
 func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	slog.Info("got shorten url request")
-	slog.Info("got expand url request",
-		"full_url", getFullURL(r),
-	)
-
 	isRequestContentTypeValid, err := validateRequestContentTypeValid(r)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
 
-	if !isRequestContentTypeValid {
+	if err != nil || !isRequestContentTypeValid {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -49,7 +42,7 @@ func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	url := string(body)
 
-	shortUrl, err := c.UrlShortener.Shorten(url)
+	shortUrl, err := c.UrlShortener.Shorten(r.Context(), url)
 	if err != nil {
 		// TODO сделать возврат ошибки в зависимости от типа
 		w.WriteHeader(http.StatusInternalServerError)
@@ -76,6 +69,7 @@ func validateRequestContentTypeValid(r *http.Request) (bool, error) {
 	return true, nil
 }
 
+// getFullURL достаем полный url пришедшего запроса
 func getFullURL(r *http.Request) string {
 	scheme := "http"
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {

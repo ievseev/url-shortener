@@ -1,19 +1,16 @@
+//go:generate mockgen -source=handler.go -destination=mocks/mock_url_shortener.go -package=mocks
+
 package expand_url_get
 
 import (
-	"log/slog"
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 )
 
-const (
-	contentTypeTextPlain  = "text/plain"
-	contentTypeHeaderName = "Content-Type"
-)
-
 type UrlShortener interface {
-	Expand(url string) (string, error)
+	Expand(ctx context.Context, url string) (string, error)
 }
 
 type ExpandUrlGetHandler struct {
@@ -25,15 +22,12 @@ func New(urlShortener UrlShortener) *ExpandUrlGetHandler {
 }
 
 func (c *ExpandUrlGetHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	slog.Info("got expand url request")
-	slog.Info("request url: ", r.URL.String())
-
 	shortURL := chi.URLParam(r, "id")
 
-	expandedURL, err := c.UrlShortener.Expand(shortURL)
+	expandedURL, err := c.UrlShortener.Expand(r.Context(), shortURL)
 	if err != nil {
 		// TODO сделать возврат ошибки в зависимости от типа
-		slog.Error("get expand service error: ", err)
+		//slog.Error("get expand service error: ", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
