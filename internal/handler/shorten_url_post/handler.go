@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	contentTypeApplicationJson = "application/json"
-	contentTypeTextPlain       = "text/plain"
-	contentTypeHeaderName      = "Content-Type"
+	contentTypeTextPlain  = "text/plain"
+	contentTypeHeaderName = "Content-Type"
 )
 
 type UrlShortener interface {
@@ -55,7 +54,7 @@ func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJson)
+	w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(c.baseURL + shortUrl); err != nil {
@@ -73,7 +72,7 @@ func validateRequestContentTypeValid(r *http.Request) (bool, error) {
 		return false, err
 	}
 
-	if mimeType != contentTypeApplicationJson {
+	if mimeType != contentTypeTextPlain {
 		return false, nil
 	}
 
