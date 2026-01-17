@@ -44,7 +44,7 @@ func run() error {
 	r := chi.NewRouter()
 
 	// register routes
-	r.Post("/api/shorten", shortenUrlHandler.Handle)
+	r.Post("/", shortenUrlHandler.Handle)
 	r.Get("/{id}", expandUrlHandler.Handle)
 
 	logger.Info("Starting HTTP server", "address", appConfig.AppAddress)
