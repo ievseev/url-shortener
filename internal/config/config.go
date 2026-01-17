@@ -1,23 +1,27 @@
 package config
 
 import (
-	"log"
-	"os"
-
-	"github.com/joho/godotenv"
+	"flag"
 )
 
 type AppConfig struct {
-	AppAddress string
+	AppAddress, BaseURL string
 }
 
-func Must() *AppConfig {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+var (
+	address *string
+	baseURL *string
+)
 
+func init() {
+	// Регистрируем флаги при инициализации пакета
+	address = flag.String("a", "localhost:8080", "app address")
+	baseURL = flag.String("b", "http://localhost:8000", "base url for response")
+}
+
+func Init() *AppConfig {
 	return &AppConfig{
-		AppAddress: os.Getenv("APP_ADDRESS"),
+		AppAddress: *address,
+		BaseURL:    *baseURL,
 	}
 }

@@ -4,14 +4,16 @@ package shorten_url_post
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"mime"
 	"net/http"
 )
 
 const (
-	contentTypeTextPlain  = "text/plain"
-	contentTypeHeaderName = "Content-Type"
+	contentTypeApplicationJson = "application/json"
+	contentTypeTextPlain       = "text/plain"
+	contentTypeHeaderName      = "Content-Type"
 )
 
 type UrlShortener interface {
@@ -19,11 +21,15 @@ type UrlShortener interface {
 }
 
 type ShortenUrlPostHandler struct {
+	baseURL      string
 	UrlShortener UrlShortener
 }
 
-func New(urlShortener UrlShortener) *ShortenUrlPostHandler {
-	return &ShortenUrlPostHandler{UrlShortener: urlShortener}
+func New(baseURL string, urlShortener UrlShortener) *ShortenUrlPostHandler {
+	return &ShortenUrlPostHandler{
+		baseURL:      baseURL,
+		UrlShortener: urlShortener,
+	}
 }
 
 func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
@@ -49,9 +55,14 @@ func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
+	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJson)
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(getFullURL(r) + shortUrl))
+
+	if err := json.NewEncoder(w).Encode(c.baseURL + shortUrl); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 }
 
 func validateRequestContentTypeValid(r *http.Request) (bool, error) {
@@ -62,18 +73,9 @@ func validateRequestContentTypeValid(r *http.Request) (bool, error) {
 		return false, err
 	}
 
-	if mimeType != contentTypeTextPlain {
+	if mimeType != contentTypeApplicationJson {
 		return false, nil
 	}
 
 	return true, nil
-}
-
-// getFullURL достаем полный url пришедшего запроса
-func getFullURL(r *http.Request) string {
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	return scheme + "://" + r.Host + r.URL.String()
 }

@@ -18,7 +18,9 @@ type ExpandUrlGetHandler struct {
 }
 
 func New(urlShortener UrlShortener) *ExpandUrlGetHandler {
-	return &ExpandUrlGetHandler{UrlShortener: urlShortener}
+	return &ExpandUrlGetHandler{
+		UrlShortener: urlShortener,
+	}
 }
 
 func (c *ExpandUrlGetHandler) Handle(w http.ResponseWriter, r *http.Request) {

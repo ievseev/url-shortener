@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -26,7 +27,8 @@ func run() error {
 	logger := setupLogger()
 
 	// init configs
-	appConfig := config.Must()
+	flag.Parse()
+	appConfig := config.Init()
 
 	// create repos
 	repository := urlRepo.NewStorage()
@@ -35,14 +37,14 @@ func run() error {
 	urlServ := urlService.New(repository)
 
 	// create handlers
-	shortenUrlHandler := shortenUrlPostHandler.New(urlServ)
+	shortenUrlHandler := shortenUrlPostHandler.New(appConfig.BaseURL, urlServ)
 	expandUrlHandler := expandUrlGetHandler.New(urlServ)
 
 	// create router with chi
 	r := chi.NewRouter()
 
 	// register routes
-	r.Post("/", shortenUrlHandler.Handle)
+	r.Post("/api/shorten", shortenUrlHandler.Handle)
 	r.Get("/{id}", expandUrlHandler.Handle)
 
 	logger.Info("Starting HTTP server", "address", appConfig.AppAddress)
