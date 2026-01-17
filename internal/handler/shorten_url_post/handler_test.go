@@ -16,7 +16,7 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	baseURL := "http://localhost:8080/"
+	baseURL := "http://localhost:8080"
 
 	tests := []struct {
 		name               string
