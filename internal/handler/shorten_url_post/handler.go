@@ -56,7 +56,7 @@ func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
 	w.WriteHeader(http.StatusCreated)
 
-	w.Write([]byte(c.baseURL + shortUrl))
+	w.Write([]byte(c.baseURL + "/" + shortUrl))
 }
 
 func validateRequestContentTypeValid(r *http.Request) (bool, error) {
