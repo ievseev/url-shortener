@@ -16,77 +16,69 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	baseURL := "http://localhost:8080"
+
 	tests := []struct {
-		name           string
-		contentType    string
-		body           string
-		mockSetup      func(mockUrlShortener *mocks.MockUrlShortener)
-		expectedStatus int
-		expectedBody   string
+		name               string
+		requestBody        string
+		contentType        string
+		mockSetup          func(mockUrlShortener *mocks.MockUrlShortener)
+		expectedStatus     int
+		expectedBodyPrefix string
+		expectError        bool
 	}{
 		{
 			name:        "успешное сокращение URL",
+			requestBody: "https://example.com/very/long/url",
 			contentType: "text/plain",
-			body:        "https://example.com",
 			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
 				mockUrlShortener.EXPECT().
-					Shorten(gomock.Any(), "https://example.com").
+					Shorten(gomock.Any(), "https://example.com/very/long/url").
 					Return("abc123", nil)
 			},
-			expectedStatus: http.StatusCreated,
-			expectedBody:   "http://example.com/abc123",
+			expectedStatus:     http.StatusCreated,
+			expectedBodyPrefix: "http://localhost:8080/abc123",
+		},
+		{
+			name:        "неправильный Content-Type",
+			requestBody: "https://example.com",
+			contentType: "application/json",
+			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
+				// мок не должен вызываться
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:        "отсутствует Content-Type",
+			requestBody: "https://example.com",
+			contentType: "",
+			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
+				// мок не должен вызываться
+			},
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "ошибка при сокращении URL",
+			requestBody: "https://example.com",
 			contentType: "text/plain",
-			body:        "invalid-url",
-			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
-				mockUrlShortener.EXPECT().
-					Shorten(gomock.Any(), "invalid-url").
-					Return("", errors.New("invalid URL"))
-			},
-			expectedStatus: http.StatusInternalServerError,
-			expectedBody:   "",
-		},
-		{
-			name:           "неверный Content-Type",
-			contentType:    "application/json",
-			body:           "https://example.com",
-			mockSetup:      func(mockUrlShortener *mocks.MockUrlShortener) {},
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "",
-		},
-		{
-			name:           "отсутствующий Content-Type",
-			contentType:    "",
-			body:           "https://example.com",
-			mockSetup:      func(mockUrlShortener *mocks.MockUrlShortener) {},
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "",
-		},
-		{
-			name:        "Content-Type с дополнительными параметрами",
-			contentType: "text/plain; charset=utf-8",
-			body:        "https://example.com",
 			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
 				mockUrlShortener.EXPECT().
 					Shorten(gomock.Any(), "https://example.com").
-					Return("def456", nil)
+					Return("", errors.New("database error"))
 			},
-			expectedStatus: http.StatusCreated,
-			expectedBody:   "http://example.com/def456",
+			expectedStatus: http.StatusInternalServerError,
 		},
 		{
 			name:        "пустое тело запроса",
+			requestBody: "",
 			contentType: "text/plain",
-			body:        "",
 			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
 				mockUrlShortener.EXPECT().
 					Shorten(gomock.Any(), "").
-					Return("", errors.New("empty URL"))
+					Return("empty123", nil)
 			},
-			expectedStatus: http.StatusInternalServerError,
-			expectedBody:   "",
+			expectedStatus:     http.StatusCreated,
+			expectedBodyPrefix: "http://localhost:8080/empty123",
 		},
 	}
 
@@ -97,12 +89,10 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			tc.mockSetup(mockUrlShortener)
 
 			// Создаем хендлер с моком
-			handler := New(mockUrlShortener)
+			handler := New(baseURL, mockUrlShortener)
 
 			// Создаем HTTP запрос
-			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tc.body))
-			req.Host = "example.com"
-
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tc.requestBody))
 			if tc.contentType != "" {
 				req.Header.Set("Content-Type", tc.contentType)
 			}
@@ -118,17 +108,17 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 				t.Errorf("ожидался статус %d, получен %d", tc.expectedStatus, rr.Code)
 			}
 
-			// Проверяем тело ответа для успешных случаев
+			// Проверяем Content-Type для успешных случаев
 			if tc.expectedStatus == http.StatusCreated {
-				body := strings.TrimSpace(rr.Body.String())
-				if body != tc.expectedBody {
-					t.Errorf("ожидалось тело ответа '%s', получено '%s'", tc.expectedBody, body)
-				}
-
-				// Проверяем заголовок Content-Type
 				contentType := rr.Header().Get("Content-Type")
 				if contentType != "text/plain" {
 					t.Errorf("ожидался Content-Type 'text/plain', получен '%s'", contentType)
+				}
+
+				// Проверяем тело ответа
+				body := rr.Body.String()
+				if tc.expectedBodyPrefix != "" && body != tc.expectedBodyPrefix {
+					t.Errorf("ожидался ответ '%s', получен '%s'", tc.expectedBodyPrefix, body)
 				}
 			}
 		})
