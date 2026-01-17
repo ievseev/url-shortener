@@ -4,7 +4,6 @@ package shorten_url_post
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"mime"
 	"net/http"
@@ -57,11 +56,7 @@ func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
 	w.WriteHeader(http.StatusCreated)
 
-	if err := json.NewEncoder(w).Encode(c.baseURL + shortUrl); err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
+	w.Write([]byte(c.baseURL + shortUrl))
 }
 
 func validateRequestContentTypeValid(r *http.Request) (bool, error) {
