@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
 const URLPattern = `^https?://[^\s/$.?#].[^\s]*$`
@@ -45,12 +47,8 @@ func (u *URLService) Shorten(ctx context.Context, url string) (string, error) {
 	// Обработка коллизий
 	counter := 0
 	for {
-		originURL, err := u.Repository.GetOriginURL(ctx, shortURL)
-		if err != nil {
-			return "", fmt.Errorf("get origin url error: %w", err)
-		}
-
-		if originURL == "" {
+		_, err := u.Repository.GetOriginURL(ctx, shortURL)
+		if errors.Is(err, URLRepo.ErrOriginURLNotFound) {
 			// значит наш shortURL оригинален, коллизии нет
 			break
 		}

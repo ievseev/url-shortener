@@ -4,10 +4,12 @@ package shortenurlpost
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/url"
 )
 
 const (
@@ -34,9 +36,7 @@ func New(baseURL string, urlShortener URLShortener, logger *slog.Logger) *Handle
 }
 
 func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	isRequestContentTypeValid, err := validateRequestContentTypeValid(r)
-
-	if err != nil || !isRequestContentTypeValid {
+	if err := validateRequestContentTypeValid(r); err != nil {
 		c.logger.Error("invalid content type", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -49,12 +49,11 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := string(body)
+	originalURL := string(body)
 
-	shortURL, err := c.URLShortener.Shorten(r.Context(), url)
+	shortURL, err := c.URLShortener.Shorten(r.Context(), originalURL)
 	if err != nil {
 		c.logger.Error("shorten service error", "error", err)
-		// TODO сделать возврат ошибки в зависимости от типа
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -62,20 +61,27 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
 	w.WriteHeader(http.StatusCreated)
 
-	w.Write([]byte(c.baseURL + "/" + shortURL))
+	result, err := url.JoinPath(c.baseURL, shortURL)
+	if err != nil {
+		c.logger.Error("join path error", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte(result))
 }
 
-func validateRequestContentTypeValid(r *http.Request) (bool, error) {
+func validateRequestContentTypeValid(r *http.Request) error {
 	contentTypeHeader := r.Header.Get(contentTypeHeaderName)
 	// из всего заголовка проверяем только mime, остальная часть может меняться
 	mimeType, _, err := mime.ParseMediaType(contentTypeHeader)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if mimeType != contentTypeTextPlain {
-		return false, nil
+		return errors.New("invalid content type")
 	}
 
-	return true, nil
+	return nil
 }

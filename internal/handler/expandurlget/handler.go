@@ -31,7 +31,6 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	expandedURL, err := c.URLShortener.Expand(r.Context(), shortURL)
 	if err != nil {
-		// TODO сделать возврат ошибки в зависимости от типа
 		c.logger.Error("expand service error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
