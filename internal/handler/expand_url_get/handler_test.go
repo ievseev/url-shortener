@@ -3,6 +3,7 @@ package expand_url_get
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,7 +56,7 @@ func TestExpandUrlGetHandler_Handle(t *testing.T) {
 			tc.mockSetup(mockUrlShortener)
 
 			// Создаем хендлер с моком
-			handler := New(mockUrlShortener)
+			handler := New(mockUrlShortener, slog.Default())
 
 			// Создаем HTTP запрос
 			req := httptest.NewRequest(http.MethodGet, "/expand/"+tc.shortURL, nil)

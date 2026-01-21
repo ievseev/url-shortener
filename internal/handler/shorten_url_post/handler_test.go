@@ -2,6 +2,7 @@ package shorten_url_post
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -88,7 +89,7 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			tc.mockSetup(mockUrlShortener)
 
 			// Создаем хендлер с моком
-			handler := New(baseURL, mockUrlShortener)
+			handler := New(baseURL, mockUrlShortener, slog.Default())
 
 			// Создаем HTTP запрос
 			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tc.requestBody))
