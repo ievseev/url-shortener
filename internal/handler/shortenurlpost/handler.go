@@ -51,7 +51,7 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	url := string(body)
 
-	shortUrl, err := c.URLShortener.Shorten(r.Context(), url)
+	shortURL, err := c.URLShortener.Shorten(r.Context(), url)
 	if err != nil {
 		c.logger.Error("shorten service error", "error", err)
 		// TODO сделать возврат ошибки в зависимости от типа
@@ -62,7 +62,7 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
 	w.WriteHeader(http.StatusCreated)
 
-	w.Write([]byte(c.baseURL + "/" + shortUrl))
+	w.Write([]byte(c.baseURL + "/" + shortURL))
 }
 
 func validateRequestContentTypeValid(r *http.Request) (bool, error) {
