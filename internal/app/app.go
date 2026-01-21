@@ -29,13 +29,13 @@ func Run() error {
 	}
 
 	// init handlers
-	shortenUrlHandler := shortenURLPostHandler.New(appConfig.BaseURL, urlServ, logger)
-	expandUrlHandler := expandURLGetHandler.New(urlServ, logger)
+	shortenURLHandler := shortenURLPostHandler.New(appConfig.BaseURL, urlServ, logger)
+	expandURLHandler := expandURLGetHandler.New(urlServ, logger)
 
 	// init router
 	r := chi.NewRouter()
-	r.Post("/", shortenUrlHandler.Handle)
-	r.Get("/{id}", expandUrlHandler.Handle)
+	r.Post("/", shortenURLHandler.Handle)
+	r.Get("/{id}", expandURLHandler.Handle)
 
 	logger.Info("Starting HTTP server", "address", appConfig.AppAddress)
 	err = http.ListenAndServe(appConfig.AppAddress, r)
