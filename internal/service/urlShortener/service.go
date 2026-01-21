@@ -1,4 +1,4 @@
-package url_shortener
+package urlShortener
 
 import (
 	"context"
@@ -19,21 +19,21 @@ type Repository interface {
 	GetOriginURL(ctx context.Context, urlShort string) (string, error)
 }
 
-type UrlService struct {
+type URLService struct {
 	Repository Repository
 	re         *regexp.Regexp
 }
 
-func New(repository Repository) (*UrlService, error) {
+func New(repository Repository) (*URLService, error) {
 	re, err := regexp.Compile(URLPattern)
 	if err != nil {
 		return nil, fmt.Errorf("regexp compile error: %w", err)
 	}
 
-	return &UrlService{Repository: repository, re: re}, nil
+	return &URLService{Repository: repository, re: re}, nil
 }
 
-func (u *UrlService) Shorten(ctx context.Context, url string) (string, error) {
+func (u *URLService) Shorten(ctx context.Context, url string) (string, error) {
 	if !u.re.MatchString(url) {
 		return "", fmt.Errorf("%w: %s", ErrorInvalidURL, url)
 	}
@@ -45,12 +45,12 @@ func (u *UrlService) Shorten(ctx context.Context, url string) (string, error) {
 	// Обработка коллизий
 	counter := 0
 	for {
-		originUrl, err := u.Repository.GetOriginURL(ctx, shortURL)
+		originURL, err := u.Repository.GetOriginURL(ctx, shortURL)
 		if err != nil {
 			return "", fmt.Errorf("get origin url error: %w", err)
 		}
 
-		if originUrl == "" {
+		if originURL == "" {
 			// значит наш shortURL оригинален, коллизии нет
 			break
 		}
@@ -68,12 +68,12 @@ func (u *UrlService) Shorten(ctx context.Context, url string) (string, error) {
 	return shortURL, nil
 }
 
-func (u *UrlService) generateBaseShortURL(url string) string {
+func (u *URLService) generateBaseShortURL(url string) string {
 	hash := md5.Sum([]byte(url))
 	return fmt.Sprintf("%x", hash)[:8]
 }
 
-func (u *UrlService) Expand(ctx context.Context, shortURL string) (string, error) {
+func (u *URLService) Expand(ctx context.Context, shortURL string) (string, error) {
 	URL, err := u.Repository.GetOriginURL(ctx, shortURL)
 	if err != nil {
 		return URL, fmt.Errorf("get origin url error: %w", err)

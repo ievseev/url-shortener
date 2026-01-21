@@ -1,6 +1,6 @@
 //go:generate mockgen -source=handler.go -destination=mocks/mock_url_shortener.go -package=mocks
 
-package shorten_url_post
+package shortenUrlPost
 
 import (
 	"context"

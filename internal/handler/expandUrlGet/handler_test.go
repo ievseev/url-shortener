@@ -1,4 +1,4 @@
-package expand_url_get
+package expandUrlGet
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/ievseev/url-shortener/internal/handler/expand_url_get/mocks"
+	"github.com/ievseev/url-shortener/internal/handler/expandUrlGet/mocks"
 )
 
 func TestExpandUrlGetHandler_Handle(t *testing.T) {
@@ -21,15 +21,15 @@ func TestExpandUrlGetHandler_Handle(t *testing.T) {
 	tests := []struct {
 		name           string
 		shortURL       string
-		mockSetup      func(mockUrlShortener *mocks.MockUrlShortener)
+		mockSetup      func(mockURLShortener *mocks.MockUrlShortener)
 		expectedStatus int
 		expectedHeader string
 	}{
 		{
 			name:     "успешное расширение URL",
 			shortURL: "abc123",
-			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
-				mockUrlShortener.EXPECT().
+			mockSetup: func(mockURLShortener *mocks.MockUrlShortener) {
+				mockURLShortener.EXPECT().
 					Expand(gomock.Any(), "abc123").
 					Return("https://example.com", nil)
 			},
@@ -39,8 +39,8 @@ func TestExpandUrlGetHandler_Handle(t *testing.T) {
 		{
 			name:     "ошибка при расширении URL",
 			shortURL: "invalid",
-			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
-				mockUrlShortener.EXPECT().
+			mockSetup: func(mockURLShortener *mocks.MockUrlShortener) {
+				mockURLShortener.EXPECT().
 					Expand(gomock.Any(), "invalid").
 					Return("", errors.New("URL not found"))
 			},
@@ -52,11 +52,11 @@ func TestExpandUrlGetHandler_Handle(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Создаем мок
-			mockUrlShortener := mocks.NewMockUrlShortener(ctrl)
-			tc.mockSetup(mockUrlShortener)
+			mockURLShortener := mocks.NewMockUrlShortener(ctrl)
+			tc.mockSetup(mockURLShortener)
 
 			// Создаем хендлер с моком
-			handler := New(mockUrlShortener, slog.Default())
+			handler := New(mockURLShortener, slog.Default())
 
 			// Создаем HTTP запрос
 			req := httptest.NewRequest(http.MethodGet, "/expand/"+tc.shortURL, nil)

@@ -8,10 +8,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ievseev/url-shortener/internal/config"
-	expandUrlGetHandler "github.com/ievseev/url-shortener/internal/handler/expand_url_get"
-	shortenUrlPostHandler "github.com/ievseev/url-shortener/internal/handler/shorten_url_post"
+	expandUrlGetHandler "github.com/ievseev/url-shortener/internal/handler/expandUrlGet"
+	shortenUrlPostHandler "github.com/ievseev/url-shortener/internal/handler/shortenUrlPost"
 	urlRepo "github.com/ievseev/url-shortener/internal/repository/url"
-	urlService "github.com/ievseev/url-shortener/internal/service/url_shortener"
+	urlService "github.com/ievseev/url-shortener/internal/service/urlShortener"
 )
 
 func Run() error {
