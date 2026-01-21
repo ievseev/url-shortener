@@ -5,6 +5,7 @@ package shorten_url_post
 import (
 	"context"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 )
@@ -21,12 +22,14 @@ type UrlShortener interface {
 type ShortenUrlPostHandler struct {
 	baseURL      string
 	UrlShortener UrlShortener
+	logger       *slog.Logger
 }
 
-func New(baseURL string, urlShortener UrlShortener) *ShortenUrlPostHandler {
+func New(baseURL string, urlShortener UrlShortener, logger *slog.Logger) *ShortenUrlPostHandler {
 	return &ShortenUrlPostHandler{
 		baseURL:      baseURL,
 		UrlShortener: urlShortener,
+		logger:       logger,
 	}
 }
 
@@ -34,12 +37,14 @@ func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	isRequestContentTypeValid, err := validateRequestContentTypeValid(r)
 
 	if err != nil || !isRequestContentTypeValid {
+		c.logger.Error("invalid content type", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		c.logger.Error("read request body error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -48,6 +53,7 @@ func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	shortUrl, err := c.UrlShortener.Shorten(r.Context(), url)
 	if err != nil {
+		c.logger.Error("shorten service error", "error", err)
 		// TODO сделать возврат ошибки в зависимости от типа
 		w.WriteHeader(http.StatusInternalServerError)
 		return

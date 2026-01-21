@@ -53,7 +53,6 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			requestBody: "https://example.com",
 			contentType: "",
 			mockSetup: func(mockUrlShortener *mocks.MockUrlShortener) {
-				// мок не должен вызываться
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
