@@ -1,4 +1,4 @@
-package expandUrlGet
+package expandurlget
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/ievseev/url-shortener/internal/handler/expandUrlGet/mocks"
+	"github.com/ievseev/url-shortener/internal/handler/expandurlget/mocks"
 )
 
 func TestExpandUrlGetHandler_Handle(t *testing.T) {

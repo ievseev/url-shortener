@@ -1,4 +1,4 @@
-package shortenUrlPost
+package shortenurlpost
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/ievseev/url-shortener/internal/handler/shortenUrlPost/mocks"
+	"github.com/ievseev/url-shortener/internal/handler/shortenurlpost/mocks"
 )
 
 func TestShortenUrlPostHandler_Handle(t *testing.T) {

@@ -8,10 +8,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ievseev/url-shortener/internal/config"
-	expandUrlGetHandler "github.com/ievseev/url-shortener/internal/handler/expandUrlGet"
-	shortenUrlPostHandler "github.com/ievseev/url-shortener/internal/handler/shortenUrlPost"
-	urlRepo "github.com/ievseev/url-shortener/internal/repository/url"
-	urlService "github.com/ievseev/url-shortener/internal/service/urlShortener"
+	expandUrlGetHandler "github.com/ievseev/url-shortener/internal/handler/expandurlget"
+	shortenUrlPostHandler "github.com/ievseev/url-shortener/internal/handler/shortenurlpost"
+	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
+	URLService "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
 func Run() error {
@@ -19,10 +19,10 @@ func Run() error {
 	appConfig := config.Init()
 
 	// init repos
-	repository := urlRepo.NewStorage()
+	repository := URLRepo.NewStorage()
 
 	// init services
-	urlServ, err := urlService.New(repository)
+	urlServ, err := URLService.New(repository)
 	if err != nil {
 		logger.Error("url service init error", "error", err)
 		return err
