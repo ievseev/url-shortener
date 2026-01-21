@@ -15,25 +15,25 @@ const (
 	contentTypeHeaderName = "Content-Type"
 )
 
-type UrlShortener interface {
+type URLShortener interface {
 	Shorten(ctx context.Context, url string) (string, error)
 }
 
-type ShortenUrlPostHandler struct {
+type Handler struct {
 	baseURL      string
-	UrlShortener UrlShortener
+	URLShortener URLShortener
 	logger       *slog.Logger
 }
 
-func New(baseURL string, urlShortener UrlShortener, logger *slog.Logger) *ShortenUrlPostHandler {
-	return &ShortenUrlPostHandler{
+func New(baseURL string, urlShortener URLShortener, logger *slog.Logger) *Handler {
+	return &Handler{
 		baseURL:      baseURL,
-		UrlShortener: urlShortener,
+		URLShortener: urlShortener,
 		logger:       logger,
 	}
 }
 
-func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
+func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	isRequestContentTypeValid, err := validateRequestContentTypeValid(r)
 
 	if err != nil || !isRequestContentTypeValid {
@@ -51,7 +51,7 @@ func (c *ShortenUrlPostHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	url := string(body)
 
-	shortUrl, err := c.UrlShortener.Shorten(r.Context(), url)
+	shortUrl, err := c.URLShortener.Shorten(r.Context(), url)
 	if err != nil {
 		c.logger.Error("shorten service error", "error", err)
 		// TODO сделать возврат ошибки в зависимости от типа

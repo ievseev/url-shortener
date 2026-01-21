@@ -10,26 +10,26 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type UrlShortener interface {
+type URLShortener interface {
 	Expand(ctx context.Context, url string) (string, error)
 }
 
-type ExpandUrlGetHandler struct {
-	UrlShortener UrlShortener
+type Handler struct {
+	URLShortener URLShortener
 	logger       *slog.Logger
 }
 
-func New(urlShortener UrlShortener, logger *slog.Logger) *ExpandUrlGetHandler {
-	return &ExpandUrlGetHandler{
-		UrlShortener: urlShortener,
+func New(urlShortener URLShortener, logger *slog.Logger) *Handler {
+	return &Handler{
+		URLShortener: urlShortener,
 		logger:       logger,
 	}
 }
 
-func (c *ExpandUrlGetHandler) Handle(w http.ResponseWriter, r *http.Request) {
+func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	shortURL := chi.URLParam(r, "id")
 
-	expandedURL, err := c.UrlShortener.Expand(r.Context(), shortURL)
+	expandedURL, err := c.URLShortener.Expand(r.Context(), shortURL)
 	if err != nil {
 		// TODO сделать возврат ошибки в зависимости от типа
 		c.logger.Error("expand service error", "error", err)

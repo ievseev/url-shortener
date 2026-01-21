@@ -16,7 +16,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockUrlShortener is a mock of UrlShortener interface.
+// MockUrlShortener is a mock of URLShortener interface.
 type MockUrlShortener struct {
 	ctrl     *gomock.Controller
 	recorder *MockUrlShortenerMockRecorder
