@@ -19,7 +19,7 @@ func Run() error {
 	appConfig := config.Init()
 
 	// init repos
-	repository := URLRepo.NewStorage()
+	repository := URLRepo.NewStorage(logger)
 
 	// init services
 	urlServ, err := URLService.New(repository)
