@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	defaultServerAddress = "localhost:8888"
-	defaultBaseURL       = "http://localhost:8888"
+	defaultServerAddress = "localhost:8080"
+	defaultBaseURL       = "http://localhost:8080"
 )
 
 type AppConfig struct {
