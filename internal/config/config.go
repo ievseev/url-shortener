@@ -19,16 +19,24 @@ type AppConfig struct {
 
 func Init(logger *slog.Logger) *AppConfig {
 	appConfig := &AppConfig{}
+
+	// Определяем флаги командной строки
+	serverAddr := flag.String("a", defaultServerAddress, "server address")
+	baseURL := flag.String("b", defaultBaseURL, "base url")
+	flag.Parse()
+
+	// 1. Пытаемся загрузить из переменных окружения
 	err := env.Parse(appConfig)
 	if err != nil {
 		logger.Warn("failed to parse env variables", "error", err)
 	}
 
-	if appConfig.ServerAddress == "" || appConfig.BaseURL == "" {
-		// Регистрируем флаги при инициализации пакета
-		appConfig.ServerAddress = *flag.String("a", defaultServerAddress, "server address")
-		appConfig.BaseURL = *flag.String("b", defaultBaseURL, "base url")
-		flag.Parse()
+	// 2. Если переменные окружения не установлены, используем флаги командной строки
+	if appConfig.ServerAddress == "" {
+		appConfig.ServerAddress = *serverAddr
+	}
+	if appConfig.BaseURL == "" {
+		appConfig.BaseURL = *baseURL
 	}
 
 	return appConfig
