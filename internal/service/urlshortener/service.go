@@ -10,7 +10,7 @@ import (
 	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
-const URLPattern = `^https?://[^\s/$.?#].[^\s]*$`
+const patternURL = `^https?://[^\s/$.?#].[^\s]*$`
 
 var (
 	ErrorInvalidURL = errors.New("invalid url")
@@ -27,7 +27,7 @@ type URLService struct {
 }
 
 func New(repository Repository) (*URLService, error) {
-	re, err := regexp.Compile(URLPattern)
+	re, err := regexp.Compile(patternURL)
 	if err != nil {
 		return nil, fmt.Errorf("regexp compile error: %w", err)
 	}

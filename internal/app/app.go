@@ -16,7 +16,7 @@ import (
 
 func Run() error {
 	logger := setupLogger()
-	appConfig := config.Init()
+	appConfig := config.Init(logger)
 
 	// init repos
 	repository := URLRepo.NewStorage(logger)
@@ -37,8 +37,8 @@ func Run() error {
 	r.Post("/", shortenURLHandler.Handle)
 	r.Get("/{id}", expandURLHandler.Handle)
 
-	logger.Info("Starting HTTP server", "address", appConfig.AppAddress)
-	err = http.ListenAndServe(appConfig.AppAddress, r)
+	logger.Info("Starting HTTP server", "address", appConfig.ServerAddress)
+	err = http.ListenAndServe(appConfig.ServerAddress, r)
 	logger.Error("HTTP server stopped", "error", err)
 
 	return err
