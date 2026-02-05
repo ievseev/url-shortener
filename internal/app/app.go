@@ -4,8 +4,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/ievseev/url-shortener/internal/config"
 	expandURLGetHandler "github.com/ievseev/url-shortener/internal/handler/expandurlget"
@@ -34,6 +36,8 @@ func Run() error {
 
 	// init router
 	r := chi.NewRouter()
+
+	r.Use(requestLogger(logger))
 	r.Post("/", shortenURLHandler.Handle)
 	r.Get("/{id}", expandURLHandler.Handle)
 
@@ -53,4 +57,22 @@ func setupLogger() *slog.Logger {
 	logger := slog.New(handler)
 
 	return logger
+}
+
+func requestLogger(logger *slog.Logger) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+			next.ServeHTTP(ww, r)
+
+			logger.Info(
+				"request",
+				"uri", r.RequestURI,
+				"method", r.Method,
+				"duration", time.Since(start))
+		})
+	}
 }
