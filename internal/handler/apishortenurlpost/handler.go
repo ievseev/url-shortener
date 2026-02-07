@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	contentTypeApplicationJson = "application/json"
+	contentTypeApplicationJSON = "application/json"
 	contentTypeHeaderName      = "Content-Type"
 )
 
@@ -65,7 +65,7 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJson)
+	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJSON)
 	w.WriteHeader(http.StatusCreated)
 
 	result, err := url.JoinPath(c.baseURL, shortURL)
@@ -91,7 +91,7 @@ func validateRequestContentTypeValid(r *http.Request) error {
 		return err
 	}
 
-	if mimeType != contentTypeApplicationJson {
+	if mimeType != contentTypeApplicationJSON {
 		return errors.New("invalid content type")
 	}
 
