@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/ievseev/url-shortener/internal/config"
+	apiShortenURLPostHandler "github.com/ievseev/url-shortener/internal/handler/apishortenurlpost"
 	expandURLGetHandler "github.com/ievseev/url-shortener/internal/handler/expandurlget"
 	shortenURLPostHandler "github.com/ievseev/url-shortener/internal/handler/shortenurlpost"
 	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
@@ -33,12 +34,14 @@ func Run() error {
 	// init handlers
 	shortenURLHandler := shortenURLPostHandler.New(appConfig.BaseURL, urlServ, logger)
 	expandURLHandler := expandURLGetHandler.New(urlServ, logger)
+	apiShortenURLHandler := apiShortenURLPostHandler.New(appConfig.BaseURL, urlServ, logger)
 
 	// init router
 	r := chi.NewRouter()
 
 	r.Use(requestLogger(logger))
 	r.Post("/", shortenURLHandler.Handle)
+	r.Post("/api/shorten", apiShortenURLHandler.Handle)
 	r.Get("/{id}", expandURLHandler.Handle)
 
 	logger.Info("Starting HTTP server", "address", appConfig.ServerAddress)
