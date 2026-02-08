@@ -13,6 +13,7 @@ import (
 	apiShortenURLPostHandler "github.com/ievseev/url-shortener/internal/handler/apishortenurlpost"
 	expandURLGetHandler "github.com/ievseev/url-shortener/internal/handler/expandurlget"
 	shortenURLPostHandler "github.com/ievseev/url-shortener/internal/handler/shortenurlpost"
+	gzipmiddleware "github.com/ievseev/url-shortener/internal/middleware"
 	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
 	URLService "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
@@ -40,6 +41,9 @@ func Run() error {
 	r := chi.NewRouter()
 
 	r.Use(requestLogger(logger))
+	r.Use(gzipmiddleware.GzipDecompressMiddleware()) // обработка входящих сжатых запросов
+	r.Use(gzipmiddleware.GzipCompressMiddleware())   // сжатие исходящих ответов
+
 	r.Post("/", shortenURLHandler.Handle)
 	r.Post("/api/shorten", apiShortenURLHandler.Handle)
 	r.Get("/{id}", expandURLHandler.Handle)
