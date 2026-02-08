@@ -16,32 +16,32 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockUrlShortener is a mock of URLShortener interface.
-type MockUrlShortener struct {
+// MockURLShortener is a mock of URLShortener interface.
+type MockURLShortener struct {
 	ctrl     *gomock.Controller
-	recorder *MockUrlShortenerMockRecorder
+	recorder *MockURLShortenerMockRecorder
 	isgomock struct{}
 }
 
-// MockUrlShortenerMockRecorder is the mock recorder for MockUrlShortener.
-type MockUrlShortenerMockRecorder struct {
-	mock *MockUrlShortener
+// MockURLShortenerMockRecorder is the mock recorder for MockURLShortener.
+type MockURLShortenerMockRecorder struct {
+	mock *MockURLShortener
 }
 
-// NewMockUrlShortener creates a new mock instance.
-func NewMockUrlShortener(ctrl *gomock.Controller) *MockUrlShortener {
-	mock := &MockUrlShortener{ctrl: ctrl}
-	mock.recorder = &MockUrlShortenerMockRecorder{mock}
+// NewMockURLShortener creates a new mock instance.
+func NewMockURLShortener(ctrl *gomock.Controller) *MockURLShortener {
+	mock := &MockURLShortener{ctrl: ctrl}
+	mock.recorder = &MockURLShortenerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockUrlShortener) EXPECT() *MockUrlShortenerMockRecorder {
+func (m *MockURLShortener) EXPECT() *MockURLShortenerMockRecorder {
 	return m.recorder
 }
 
 // Shorten mocks base method.
-func (m *MockUrlShortener) Shorten(ctx context.Context, url string) (string, error) {
+func (m *MockURLShortener) Shorten(ctx context.Context, url string) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shorten", ctx, url)
 	ret0, _ := ret[0].(string)
@@ -50,7 +50,7 @@ func (m *MockUrlShortener) Shorten(ctx context.Context, url string) (string, err
 }
 
 // Shorten indicates an expected call of Shorten.
-func (mr *MockUrlShortenerMockRecorder) Shorten(ctx, url any) *gomock.Call {
+func (mr *MockURLShortenerMockRecorder) Shorten(ctx, url any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shorten", reflect.TypeOf((*MockUrlShortener)(nil).Shorten), ctx, url)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shorten", reflect.TypeOf((*MockURLShortener)(nil).Shorten), ctx, url)
 }

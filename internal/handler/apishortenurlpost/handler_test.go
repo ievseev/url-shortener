@@ -25,7 +25,7 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    *Request
-		mockSetup      func(MockUrlShortener *mocks.MockUrlShortener)
+		mockSetup      func(MockURLShortener *mocks.MockURLShortener)
 		expectedResult *Response
 	}{
 		{
@@ -33,8 +33,8 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 			requestBody: &Request{
 				URL: "https://example.com/very/long/url",
 			},
-			mockSetup: func(MockUrlShortener *mocks.MockUrlShortener) {
-				MockUrlShortener.EXPECT().
+			mockSetup: func(MockURLShortener *mocks.MockURLShortener) {
+				MockURLShortener.EXPECT().
 					Shorten(gomock.Any(), "https://example.com/very/long/url").
 					Return("abc123", nil)
 			},
@@ -47,8 +47,8 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 			requestBody: &Request{
 				URL: "",
 			},
-			mockSetup: func(MockUrlShortener *mocks.MockUrlShortener) {
-				MockUrlShortener.EXPECT().
+			mockSetup: func(MockURLShortener *mocks.MockURLShortener) {
+				MockURLShortener.EXPECT().
 					Shorten(gomock.Any(), "").
 					Return("empty123", nil)
 			},
@@ -61,8 +61,8 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 			requestBody: &Request{
 				URL: "https://example.com/path?param1=value1&param2=value2",
 			},
-			mockSetup: func(MockUrlShortener *mocks.MockUrlShortener) {
-				MockUrlShortener.EXPECT().
+			mockSetup: func(MockURLShortener *mocks.MockURLShortener) {
+				MockURLShortener.EXPECT().
 					Shorten(gomock.Any(), "https://example.com/path?param1=value1&param2=value2").
 					Return("param123", nil)
 			},
@@ -74,10 +74,10 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			MockUrlShortener := mocks.NewMockUrlShortener(ctrl)
-			tc.mockSetup(MockUrlShortener)
+			MockURLShortener := mocks.NewMockURLShortener(ctrl)
+			tc.mockSetup(MockURLShortener)
 
-			handler := New(baseURL, MockUrlShortener, slog.Default())
+			handler := New(baseURL, MockURLShortener, slog.Default())
 
 			requestBody, err := json.Marshal(tc.requestBody)
 			require.NoError(t, err)
@@ -136,10 +136,10 @@ func TestAPIShortenurlPostHandler_Handle_ContentTypeValidation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			MockUrlShortener := mocks.NewMockUrlShortener(ctrl)
+			MockURLShortener := mocks.NewMockURLShortener(ctrl)
 			// мок не должен вызываться для неправильного Content-Type
 
-			handler := New(baseURL, MockUrlShortener, slog.Default())
+			handler := New(baseURL, MockURLShortener, slog.Default())
 
 			requestBody, err := json.Marshal(tc.requestBody)
 			require.NoError(t, err)
@@ -187,10 +187,10 @@ func TestAPIShortenurlPostHandler_Handle_InvalidJSON(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			MockUrlShortener := mocks.NewMockUrlShortener(ctrl)
+			MockURLShortener := mocks.NewMockURLShortener(ctrl)
 			// мок не должен вызываться для невалидного JSON
 
-			handler := New(baseURL, MockUrlShortener, slog.Default())
+			handler := New(baseURL, MockURLShortener, slog.Default())
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBufferString(tc.requestJSON))
 			req.Header.Set("Content-Type", "application/json")
@@ -208,13 +208,13 @@ func TestAPIShortenurlPostHandler_Handle_EmptyJSONObject(t *testing.T) {
 	defer ctrl.Finish()
 
 	baseURL := "http://localhost:8080"
-	MockUrlShortener := mocks.NewMockUrlShortener(ctrl)
+	MockURLShortener := mocks.NewMockURLShortener(ctrl)
 
-	MockUrlShortener.EXPECT().
+	MockURLShortener.EXPECT().
 		Shorten(gomock.Any(), "").
 		Return("empty123", nil)
 
-	handler := New(baseURL, MockUrlShortener, slog.Default())
+	handler := New(baseURL, MockURLShortener, slog.Default())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -272,12 +272,12 @@ func TestAPIShortenurlPostHandler_Handle_ServiceErrors(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			MockUrlShortener := mocks.NewMockUrlShortener(ctrl)
-			MockUrlShortener.EXPECT().
+			MockURLShortener := mocks.NewMockURLShortener(ctrl)
+			MockURLShortener.EXPECT().
 				Shorten(gomock.Any(), tc.requestBody.URL).
 				Return("", tc.serviceError)
 
-			handler := New(baseURL, MockUrlShortener, slog.Default())
+			handler := New(baseURL, MockURLShortener, slog.Default())
 
 			requestBody, err := json.Marshal(tc.requestBody)
 			require.NoError(t, err)
