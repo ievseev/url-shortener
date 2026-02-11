@@ -45,8 +45,11 @@ func Middleware(next http.Handler) http.Handler {
 			r.Header.Del(headerContentEncoding)
 		}
 
-		// 2) Compress response if client supports it
-		if !hasToken(r.Header.Get(headerAcceptEncoding), encodingGzip) {
+		// 2) Check if client accepts gzip compression
+		clientSupportsGzip := hasToken(r.Header.Get(headerAcceptEncoding), encodingGzip)
+
+		if !clientSupportsGzip {
+			// Client doesn't support gzip, serve normally
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -63,7 +66,6 @@ func Middleware(next http.Handler) http.Handler {
 		cw := &compressResponseWriter{
 			ResponseWriter: w,
 			gzw:            gzw,
-			acceptsGzip:    true, // клиент поддерживает gzip
 		}
 
 		next.ServeHTTP(cw, r)
@@ -83,7 +85,6 @@ type compressResponseWriter struct {
 
 	wroteHeader bool
 	compress    bool
-	acceptsGzip bool
 }
 
 func (w *compressResponseWriter) WriteHeader(statusCode int) {
@@ -96,8 +97,8 @@ func (w *compressResponseWriter) WriteHeader(statusCode int) {
 	ct := w.Header().Get(headerContentType)
 	mt := mimeType(ct)
 
-	// Сжимаем только если клиент поддерживает gzip И контент подходящего типа
-	if w.acceptsGzip && (mt == "application/json" || mt == "text/html") {
+	// Compress only supported content types
+	if mt == "application/json" || mt == "text/html" {
 		w.compress = true
 		w.Header().Set(headerContentEncoding, encodingGzip)
 		// When encoding changes, Content-Length is no longer valid
