@@ -79,6 +79,7 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		c.logger.Error("json marshal error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	w.Write(response)
 }

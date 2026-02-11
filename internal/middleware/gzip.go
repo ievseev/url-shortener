@@ -2,28 +2,15 @@ package middleware
 
 import (
 	"compress/gzip"
-	"io"
 	"net/http"
 	"strings"
 )
 
-// compressibleContentTypes определяет типы контента, которые могут быть сжаты
 var compressibleContentTypes = map[string]bool{
 	"application/json": true,
 	"text/html":        true,
 }
 
-// gzipWriter обертка для http.ResponseWriter с поддержкой gzip-сжатия
-type gzipWriter struct {
-	http.ResponseWriter
-	Writer io.Writer
-}
-
-func (w gzipWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
-}
-
-// GzipMiddleware создает middleware для обработки gzip-сжатия
 func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// обрабатываем сжатые входящие данные
@@ -39,28 +26,27 @@ func GzipMiddleware(next http.Handler) http.Handler {
 
 		// проверяем поддержку gzip клиентом
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			// если клиент не поддерживает gzip, передаем управление без сжатия
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// создаем обертку для перехвата и анализа Content-Type
+		// создаем обертку для условного сжатия
 		wrapper := &responseWrapper{
 			ResponseWriter: w,
-			request:        r,
 		}
 
+		// передаем управление следующему обработчику
 		next.ServeHTTP(wrapper, r)
+
+		// обязательно закрываем gzip writer после выполнения
+		wrapper.Close()
 	})
 }
 
-// responseWrapper обертка для анализа Content-Type и условного сжатия
 type responseWrapper struct {
 	http.ResponseWriter
-	request        *http.Request
-	gzWriter       *gzip.Writer
-	headerWritten  bool
-	shouldCompress bool
+	gzWriter      *gzip.Writer
+	headerWritten bool
 }
 
 func (w *responseWrapper) WriteHeader(statusCode int) {
@@ -69,25 +55,25 @@ func (w *responseWrapper) WriteHeader(statusCode int) {
 	}
 
 	contentType := w.Header().Get("Content-Type")
+	shouldCompress := false
 
-	// проверяем, нужно ли сжимать: Content-Type должен быть в списке сжимаемых
-	// И клиент должен поддерживать gzip (это уже проверено выше)
+	// проверяем, является ли Content-Type сжимаемым
 	for ct := range compressibleContentTypes {
 		if strings.Contains(contentType, ct) {
-			w.shouldCompress = true
+			shouldCompress = true
 			break
 		}
 	}
 
-	// если нужно сжимать, инициализируем gzip writer
-	if w.shouldCompress {
+	// инициализируем gzip writer только если нужно сжимать
+	if shouldCompress {
 		var err error
 		w.gzWriter, err = gzip.NewWriterLevel(w.ResponseWriter, gzip.BestSpeed)
-		if err != nil {
-			w.shouldCompress = false
-		} else {
+		if err == nil {
 			w.Header().Set("Content-Encoding", "gzip")
 			w.Header().Del("Content-Length")
+		} else {
+			w.gzWriter = nil // на случай ошибки
 		}
 	}
 
@@ -100,19 +86,17 @@ func (w *responseWrapper) Write(b []byte) (int, error) {
 		w.WriteHeader(http.StatusOK)
 	}
 
-	// если должны сжимать и gzip writer инициализирован
-	if w.shouldCompress && w.gzWriter != nil {
+	// записываем через gzip writer если он был создан
+	if w.gzWriter != nil {
 		return w.gzWriter.Write(b)
 	}
 
-	// иначе записываем как обычно
 	return w.ResponseWriter.Write(b)
 }
 
-// Close закрывает gzip writer, если он был создан
-func (w *responseWrapper) Close() error {
+// Close закрывает gzip writer и записывает оставшиеся данные
+func (w *responseWrapper) Close() {
 	if w.gzWriter != nil {
-		return w.gzWriter.Close()
+		w.gzWriter.Close()
 	}
-	return nil
 }
