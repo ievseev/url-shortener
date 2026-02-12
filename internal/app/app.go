@@ -21,7 +21,11 @@ func Run() error {
 	appConfig := config.Init(logger)
 
 	// init repos
-	repository := URLRepo.NewStorage(logger)
+	repository, err := URLRepo.NewStorage(logger, appConfig.StorageFilePath)
+	if err != nil {
+		logger.Error("storage init error", "error", err)
+		return err
+	}
 
 	// init services
 	urlServ, err := URLService.New(repository)
