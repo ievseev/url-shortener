@@ -14,14 +14,18 @@ import (
 	"github.com/ievseev/url-shortener/internal/middleware"
 	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
 	URLService "github.com/ievseev/url-shortener/internal/service/urlshortener"
+	fileStorage "github.com/ievseev/url-shortener/internal/storage"
 )
 
 func Run() error {
 	logger := setupLogger()
 	appConfig := config.Init(logger)
 
+	// init storage
+	storage := fileStorage.New(logger, appConfig.FileStoragePath)
+
 	// init repos
-	repository, err := URLRepo.NewStorage(logger, appConfig.FileStoragePath)
+	repository, err := URLRepo.New(logger, storage)
 	if err != nil {
 		logger.Error("storage init error", "error", err)
 		return err
