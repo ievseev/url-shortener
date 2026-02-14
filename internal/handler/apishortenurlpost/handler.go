@@ -65,9 +65,6 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJSON)
-	w.WriteHeader(http.StatusCreated)
-
 	result, err := url.JoinPath(c.baseURL, shortURL)
 	if err != nil {
 		c.logger.Error("join path error", "error", err)
@@ -81,6 +78,9 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJSON)
+	w.WriteHeader(http.StatusCreated)
 	w.Write(response)
 }
 
