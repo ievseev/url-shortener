@@ -11,12 +11,14 @@ const (
 	defaultServerAddress   = "localhost:8080"
 	defaultBaseURL         = "http://localhost:8080"
 	defaultFileStoragePath = "urls.json"
+	defaultDatabaseDSN     = "postgres://admin:password@localhost:5432/urlshortener?sslmode=disable"
 )
 
 type AppConfig struct {
 	ServerAddress   string `env:"SERVER_ADDRESS"`
 	BaseURL         string `env:"BASE_URL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
 func Init(logger *slog.Logger) *AppConfig {
@@ -25,7 +27,9 @@ func Init(logger *slog.Logger) *AppConfig {
 	// Определяем флаги командной строки
 	serverAddr := flag.String("a", defaultServerAddress, "server address")
 	baseURL := flag.String("b", defaultBaseURL, "base url")
-	FileStoragePath := flag.String("f", defaultFileStoragePath, "storage file path")
+	fileStoragePath := flag.String("f", defaultFileStoragePath, "storage file path")
+	databaseDSN := flag.String("d", defaultDatabaseDSN, "database dsn")
+
 	flag.Parse()
 
 	// 1. Пытаемся загрузить из переменных окружения
@@ -42,7 +46,10 @@ func Init(logger *slog.Logger) *AppConfig {
 		appConfig.BaseURL = *baseURL
 	}
 	if appConfig.FileStoragePath == "" {
-		appConfig.FileStoragePath = *FileStoragePath
+		appConfig.FileStoragePath = *fileStoragePath
+	}
+	if appConfig.DatabaseDSN == "" {
+		appConfig.DatabaseDSN = *databaseDSN
 	}
 
 	return appConfig
