@@ -16,11 +16,6 @@ func NewPostgres(ctx context.Context, storagePath string) (*Postgres, error) {
 		return nil, err
 	}
 
-	err = dbPool.Ping(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Postgres{
 		dbPool: dbPool,
 	}, nil
