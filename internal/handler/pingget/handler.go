@@ -1,33 +1,28 @@
-//go:generate mockgen -source=handler.go -destination=mocks/mock_url_shortener.go -package=mocks
-
-package expandurlget
+package pingget
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
+
+	"github.com/ievseev/url-shortener/internal/storage/db"
 )
 
-type Storage interface {
-	Ping(ctx context.Context) error
-}
-
 type Handler struct {
-	Storage Storage
-	logger  *slog.Logger
+	postgres *db.Postgres
+	logger   *slog.Logger
 }
 
-func New(storage Storage, logger *slog.Logger) *Handler {
+func New(postgres *db.Postgres, logger *slog.Logger) *Handler {
 	return &Handler{
-		Storage: storage,
-		logger:  logger,
+		postgres: postgres,
+		logger:   logger,
 	}
 }
 
 func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	err := c.Storage.Ping(r.Context())
+	err := c.postgres.Ping(r.Context())
 	if err != nil {
-		c.logger.Error("expand service error", "error", err)
+		c.logger.Error("ping service error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

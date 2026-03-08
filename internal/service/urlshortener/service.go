@@ -47,9 +47,15 @@ func (u *URLService) Shorten(ctx context.Context, url string) (string, error) {
 	// Обработка коллизий
 	counter := 0
 	for {
-		_, err := u.Repository.GetOriginURL(ctx, shortURL)
+		existingURL, err := u.Repository.GetOriginURL(ctx, shortURL)
 		if errors.Is(err, URLRepo.ErrOriginURLNotFound) {
 			// значит наш shortURL оригинален, коллизии нет
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("check short url collision error: %w", err)
+		}
+		if existingURL == url {
 			break
 		}
 

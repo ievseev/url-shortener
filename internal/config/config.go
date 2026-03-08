@@ -8,10 +8,8 @@ import (
 )
 
 const (
-	defaultServerAddress   = "localhost:8080"
-	defaultBaseURL         = "http://localhost:8080"
-	defaultFileStoragePath = "urls.json"
-	defaultDatabaseDSN     = "postgres://admin:password@localhost:5432/urlshortener?sslmode=disable"
+	defaultServerAddress = "localhost:8080"
+	defaultBaseURL       = "http://localhost:8080"
 )
 
 type AppConfig struct {
@@ -27,8 +25,8 @@ func Init(logger *slog.Logger) *AppConfig {
 	// Определяем флаги командной строки
 	serverAddr := flag.String("a", defaultServerAddress, "server address")
 	baseURL := flag.String("b", defaultBaseURL, "base url")
-	fileStoragePath := flag.String("f", defaultFileStoragePath, "storage file path")
-	databaseDSN := flag.String("d", defaultDatabaseDSN, "database dsn")
+	fileStoragePath := flag.String("f", "", "storage file path")
+	databaseDSN := flag.String("d", "", "database dsn")
 
 	flag.Parse()
 
