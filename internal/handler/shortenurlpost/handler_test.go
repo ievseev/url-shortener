@@ -11,6 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/ievseev/url-shortener/internal/handler/shortenurlpost/mocks"
+	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
 func TestShortenUrlPostHandler_Handle(t *testing.T) {
@@ -69,6 +70,18 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 		},
 		{
+			name:        "конфликт при повторном сокращении URL",
+			requestBody: "https://example.com",
+			contentType: "text/plain",
+			mockSetup: func(mockURLShortener *mocks.MockUrlShortener) {
+				mockURLShortener.EXPECT().
+					Shorten(gomock.Any(), "https://example.com").
+					Return("abc123", urlshortenerservice.ErrorURLConflict)
+			},
+			expectedStatus:     http.StatusConflict,
+			expectedBodyPrefix: "http://localhost:8080/abc123",
+		},
+		{
 			name:        "пустое тело запроса",
 			requestBody: "",
 			contentType: "text/plain",
@@ -109,7 +122,7 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			}
 
 			// Проверяем Content-Type для успешных случаев
-			if tc.expectedStatus == http.StatusCreated {
+			if tc.expectedStatus == http.StatusCreated || tc.expectedStatus == http.StatusConflict {
 				contentType := rr.Header().Get("Content-Type")
 				if contentType != "text/plain" {
 					t.Errorf("ожидался Content-Type 'text/plain', получен '%s'", contentType)

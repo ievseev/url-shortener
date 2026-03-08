@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/ievseev/url-shortener/internal/handler/apishortenurlpost/mocks"
+	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
 func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
@@ -234,6 +235,34 @@ func TestAPIShortenurlPostHandler_Handle_EmptyJSONObject(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedResult.Result, actualResponse.Result)
+}
+
+func TestAPIShortenurlPostHandler_Handle_Conflict(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	baseURL := "http://localhost:8080"
+	mockURLShortener := mocks.NewMockURLShortener(ctrl)
+
+	mockURLShortener.EXPECT().
+		Shorten(gomock.Any(), "https://example.com").
+		Return("abc123", urlshortenerservice.ErrorURLConflict)
+
+	handler := New(baseURL, mockURLShortener, slog.Default())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBufferString(`{"url":"https://example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	handler.Handle(rr, req)
+
+	assert.Equal(t, http.StatusConflict, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+
+	var actualResponse Response
+	err := json.Unmarshal(rr.Body.Bytes(), &actualResponse)
+	require.NoError(t, err)
+	assert.Equal(t, "http://localhost:8080/abc123", actualResponse.Result)
 }
 
 func TestAPIShortenurlPostHandler_Handle_ServiceErrors(t *testing.T) {

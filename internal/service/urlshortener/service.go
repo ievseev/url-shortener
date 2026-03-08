@@ -6,12 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
 const patternURL = `^https?://[^\s/$.?#].[^\s]*$`
 
 var (
-	ErrorInvalidURL = errors.New("invalid url")
+	ErrorInvalidURL  = errors.New("invalid url")
+	ErrorURLConflict = errors.New("url conflict")
 )
 
 type Repository interface {
@@ -41,6 +44,10 @@ func (u *URLService) Shorten(ctx context.Context, url string) (string, error) {
 
 	shortURL, err := u.Repository.SaveURL(ctx, url, u.generateBaseShortURL(url))
 	if err != nil {
+		if errors.Is(err, URLRepo.ErrOriginalURLConflict) {
+			return shortURL, errors.Join(ErrorURLConflict, err)
+		}
+
 		return "", fmt.Errorf("save url pair error: %w", err)
 	}
 

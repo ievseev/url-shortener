@@ -11,6 +11,8 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+
+	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
 const (
@@ -60,28 +62,17 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	shortURL, err := c.URLShortener.Shorten(r.Context(), request.URL)
 	if err != nil {
+		if errors.Is(err, urlshortenerservice.ErrorURLConflict) {
+			c.writeResponse(w, shortURL, http.StatusConflict)
+			return
+		}
+
 		c.logger.Error("shorten service error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	result, err := url.JoinPath(c.baseURL, shortURL)
-	if err != nil {
-		c.logger.Error("join path error", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	response, err := json.Marshal(Response{Result: result})
-	if err != nil {
-		c.logger.Error("json marshal error", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJSON)
-	w.WriteHeader(http.StatusCreated)
-	w.Write(response)
+	c.writeResponse(w, shortURL, http.StatusCreated)
 }
 
 func validateRequestContentTypeValid(r *http.Request) error {
@@ -97,4 +88,24 @@ func validateRequestContentTypeValid(r *http.Request) error {
 	}
 
 	return nil
+}
+
+func (c *Handler) writeResponse(w http.ResponseWriter, shortURL string, statusCode int) {
+	result, err := url.JoinPath(c.baseURL, shortURL)
+	if err != nil {
+		c.logger.Error("join path error", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	response, err := json.Marshal(Response{Result: result})
+	if err != nil {
+		c.logger.Error("json marshal error", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJSON)
+	w.WriteHeader(statusCode)
+	w.Write(response)
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
 func TestURLService_ShortenUsesRepositorySaveURL(t *testing.T) {
@@ -41,6 +43,25 @@ func TestURLService_ShortenReturnsRepositoryError(t *testing.T) {
 	_, err = service.Shorten(context.Background(), "https://example.com")
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestURLService_ShortenReturnsConflictWithoutDroppingShortURL(t *testing.T) {
+	service, err := New(&stubRepository{
+		saveURLResult: "c984d06a",
+		saveURLErr:    URLRepo.ErrOriginalURLConflict,
+	})
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	shortURL, err := service.Shorten(context.Background(), "https://example.com")
+	if !errors.Is(err, ErrorURLConflict) {
+		t.Fatalf("expected conflict error, got %v", err)
+	}
+
+	if shortURL != "c984d06a" {
+		t.Fatalf("expected existing short URL, got %q", shortURL)
 	}
 }
 
@@ -99,7 +120,7 @@ func (s *stubRepository) SaveURL(ctx context.Context, urlOrigin, shortURLBase st
 	s.saveURLBase = shortURLBase
 
 	if s.saveURLErr != nil {
-		return "", s.saveURLErr
+		return s.saveURLResult, s.saveURLErr
 	}
 
 	return s.saveURLResult, nil

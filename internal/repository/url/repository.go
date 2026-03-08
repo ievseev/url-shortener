@@ -8,7 +8,10 @@ import (
 	"sync"
 )
 
-var ErrOriginURLNotFound = errors.New("origin URL not found")
+var (
+	ErrOriginURLNotFound   = errors.New("origin URL not found")
+	ErrOriginalURLConflict = errors.New("original URL conflict")
+)
 
 type Storage interface {
 	Save(ctx context.Context, data map[string]string) error
