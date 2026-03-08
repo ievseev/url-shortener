@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-
-	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
 const patternURL = `^https?://[^\s/$.?#].[^\s]*$`
@@ -17,7 +15,8 @@ var (
 )
 
 type Repository interface {
-	SaveURLPair(ctx context.Context, urlOrigin, urlShort string) error
+	SaveURL(ctx context.Context, urlOrigin, shortURLBase string) (string, error)
+	SaveURLBatch(ctx context.Context, urlOrigins, shortURLBases []string) ([]string, error)
 	GetOriginURL(ctx context.Context, urlShort string) (string, error)
 }
 
@@ -40,36 +39,31 @@ func (u *URLService) Shorten(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrorInvalidURL, url)
 	}
 
-	// возможно вынести в еще один сервисный слой, для удобства тестирования
-	baseShortURL := u.generateBaseShortURL(url)
-	shortURL := baseShortURL
-
-	// Обработка коллизий
-	counter := 0
-	for {
-		existingURL, err := u.Repository.GetOriginURL(ctx, shortURL)
-		if errors.Is(err, URLRepo.ErrOriginURLNotFound) {
-			// значит наш shortURL оригинален, коллизии нет
-			break
-		}
-		if err != nil {
-			return "", fmt.Errorf("check short url collision error: %w", err)
-		}
-		if existingURL == url {
-			break
-		}
-
-		// Если коллизия, добавляем суффикс
-		counter++
-		shortURL = fmt.Sprintf("%s_%d", baseShortURL, counter)
-	}
-
-	err := u.Repository.SaveURLPair(ctx, url, shortURL)
+	shortURL, err := u.Repository.SaveURL(ctx, url, u.generateBaseShortURL(url))
 	if err != nil {
 		return "", fmt.Errorf("save url pair error: %w", err)
 	}
 
 	return shortURL, nil
+}
+
+func (u *URLService) ShortenBatch(ctx context.Context, urls []string) ([]string, error) {
+	shortURLBases := make([]string, len(urls))
+
+	for i, currentURL := range urls {
+		if !u.re.MatchString(currentURL) {
+			return nil, fmt.Errorf("%w: %s", ErrorInvalidURL, currentURL)
+		}
+
+		shortURLBases[i] = u.generateBaseShortURL(currentURL)
+	}
+
+	shortURLs, err := u.Repository.SaveURLBatch(ctx, urls, shortURLBases)
+	if err != nil {
+		return nil, fmt.Errorf("save url batch error: %w", err)
+	}
+
+	return shortURLs, nil
 }
 
 func (u *URLService) generateBaseShortURL(url string) string {
