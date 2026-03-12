@@ -100,6 +100,10 @@ func (r *Repository) GetOriginURL(ctx context.Context, urlShort string) (string,
 	return "", ErrOriginURLNotFound
 }
 
+func (r *Repository) Ping(ctx context.Context) error {
+	return nil
+}
+
 func reserveShortURL(urlMap map[string]string, urlOrigin, shortURLBase string) string {
 	shortURL := shortURLBase
 

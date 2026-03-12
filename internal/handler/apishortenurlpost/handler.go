@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
@@ -40,7 +41,6 @@ func New(baseURL string, urlShortener URLShortener, logger *slog.Logger) *Handle
 
 func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if err := validateRequestContentTypeValid(r); err != nil {
-		c.logger.Error("invalid content type", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -55,7 +55,6 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var request Request
 	err = json.Unmarshal(body, &request)
 	if err != nil {
-		c.logger.Error("json unmarshal error", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -84,7 +83,7 @@ func validateRequestContentTypeValid(r *http.Request) error {
 	}
 
 	if mimeType != contentTypeApplicationJSON {
-		return errors.New("invalid content type")
+		return fmt.Errorf("invalid content type: got %q", mimeType)
 	}
 
 	return nil

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
+	urlrepo "github.com/ievseev/url-shortener/internal/repository/url"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -13,7 +13,39 @@ import (
 type urlQueryer interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
 }
+
+const (
+	insertURLExecQuery = `
+		INSERT INTO short_urls (short_url, original_url)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING
+	`
+	insertURLBatchQuery = `
+		INSERT INTO short_urls (short_url, original_url)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING
+		RETURNING short_url
+	`
+	selectByShortURLQuery = `
+		SELECT short_url, original_url
+		FROM short_urls
+		WHERE short_url = $1
+	`
+	selectByOriginalURLQuery = `
+		SELECT short_url
+		FROM short_urls
+		WHERE original_url = $1
+	`
+)
+
+type shortURLRecord struct {
+	shortURL    string
+	originalURL string
+}
+
+var errBatchInsertConflict = errors.New("batch insert conflict")
 
 func (p *Postgres) Ping(ctx context.Context) error {
 	err := p.dbPool.Ping(ctx)
@@ -32,7 +64,7 @@ func (p *Postgres) SaveURL(ctx context.Context, urlOrigin, shortURLBase string) 
 	defer tx.Rollback(ctx)
 
 	shortURL, err := saveURLTx(ctx, tx, urlOrigin, shortURLBase)
-	if err != nil && !errors.Is(err, URLRepo.ErrOriginalURLConflict) {
+	if err != nil && !errors.Is(err, urlrepo.ErrOriginalURLConflict) {
 		return "", err
 	}
 
@@ -83,7 +115,7 @@ func (p *Postgres) GetOriginURL(ctx context.Context, urlShort string) (string, e
 	).Scan(&originalURL)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", URLRepo.ErrOriginURLNotFound
+			return "", urlrepo.ErrOriginURLNotFound
 		}
 
 		return "", err
@@ -97,17 +129,11 @@ func saveURLBatchTx(
 	queryer urlQueryer,
 	urlOrigins, shortURLBases []string,
 ) ([]string, error) {
-	shortURLs := make([]string, len(urlOrigins))
-	for i := range urlOrigins {
-		shortURL, err := saveURLTx(ctx, queryer, urlOrigins[i], shortURLBases[i])
-		if err != nil && !errors.Is(err, URLRepo.ErrOriginalURLConflict) {
-			return nil, err
-		}
-
-		shortURLs[i] = shortURL
+	if len(urlOrigins) == 0 {
+		return []string{}, nil
 	}
 
-	return shortURLs, nil
+	return tryInsertBatch(ctx, queryer, urlOrigins, shortURLBases)
 }
 
 func saveURLTx(
@@ -115,48 +141,26 @@ func saveURLTx(
 	queryer urlQueryer,
 	urlOrigin, shortURLBase string,
 ) (string, error) {
-	shortURL := shortURLBase
-
 	for counter := 0; ; counter++ {
-		if counter > 0 {
-			shortURL = fmt.Sprintf("%s_%d", shortURLBase, counter)
-		}
+		shortURL := makeShortURLCandidate(shortURLBase, counter)
 
-		commandTag, err := queryer.Exec(
-			ctx,
-			`
-				INSERT INTO short_urls (short_url, original_url)
-				VALUES ($1, $2)
-				ON CONFLICT DO NOTHING
-			`,
-			shortURL,
-			urlOrigin,
-		)
+		inserted, err := tryInsertURL(ctx, queryer, shortURL, urlOrigin)
 		if err != nil {
 			return "", err
 		}
-
-		if commandTag.RowsAffected() == 1 {
+		if inserted {
 			return shortURL, nil
 		}
 
-		var existingURL string
-		err = queryer.QueryRow(
-			ctx,
-			`
-				SELECT original_url
-				FROM short_urls
-				WHERE short_url = $1
-			`,
-			shortURL,
-		).Scan(&existingURL)
+		existingRecord, found, err := getShortURLRecordByShortTx(ctx, queryer, shortURL)
 		if err != nil {
-			if !errors.Is(err, pgx.ErrNoRows) {
-				return "", err
+			return "", err
+		}
+		if found {
+			if existingRecord.originalURL == urlOrigin {
+				return existingRecord.shortURL, urlrepo.ErrOriginalURLConflict
 			}
-		} else if existingURL == urlOrigin {
-			return shortURL, URLRepo.ErrOriginalURLConflict
-		} else {
+
 			continue
 		}
 
@@ -169,25 +173,126 @@ func saveURLTx(
 			return "", err
 		}
 
-		return existingShortURL, URLRepo.ErrOriginalURLConflict
+		return existingShortURL, urlrepo.ErrOriginalURLConflict
 	}
 }
 
 func getShortURLByOriginalTx(ctx context.Context, queryer urlQueryer, urlOrigin string) (string, error) {
-	var shortURL string
-
-	err := queryer.QueryRow(
+	shortURL, found, err := scanShortURL(queryer.QueryRow(
 		ctx,
-		`
-			SELECT short_url
-			FROM short_urls
-			WHERE original_url = $1
-		`,
+		selectByOriginalURLQuery,
 		urlOrigin,
-	).Scan(&shortURL)
+	))
 	if err != nil {
 		return "", err
 	}
+	if !found {
+		return "", pgx.ErrNoRows
+	}
 
 	return shortURL, nil
+}
+
+func tryInsertURL(ctx context.Context, queryer urlQueryer, shortURL, urlOrigin string) (bool, error) {
+	commandTag, err := queryer.Exec(
+		ctx,
+		insertURLExecQuery,
+		shortURL,
+		urlOrigin,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	return commandTag.RowsAffected() == 1, nil
+}
+
+func getShortURLRecordByShortTx(
+	ctx context.Context,
+	queryer urlQueryer,
+	shortURL string,
+) (shortURLRecord, bool, error) {
+	return scanShortURLRecord(queryer.QueryRow(ctx, selectByShortURLQuery, shortURL))
+}
+
+func tryInsertBatch(
+	ctx context.Context,
+	queryer urlQueryer,
+	urlOrigins, shortURLBases []string,
+) ([]string, error) {
+	if len(urlOrigins) == 0 {
+		return []string{}, nil
+	}
+
+	batch := &pgx.Batch{}
+	for i := range urlOrigins {
+		batch.Queue(insertURLBatchQuery, shortURLBases[i], urlOrigins[i])
+	}
+
+	results := queryer.SendBatch(ctx, batch)
+	shortURLs := make([]string, len(urlOrigins))
+	hasConflict := false
+
+	for i := range urlOrigins {
+		shortURL, found, err := scanShortURL(results.QueryRow())
+		if err != nil {
+			results.Close()
+			return nil, err
+		}
+
+		if !found {
+			hasConflict = true
+			continue
+		}
+
+		shortURLs[i] = shortURL
+	}
+
+	if err := results.Close(); err != nil {
+		return nil, err
+	}
+
+	if hasConflict {
+		return nil, errBatchInsertConflict
+	}
+
+	return shortURLs, nil
+}
+
+func scanShortURLRecord(row pgx.Row) (shortURLRecord, bool, error) {
+	var record shortURLRecord
+
+	err := row.Scan(&record.shortURL, &record.originalURL)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return shortURLRecord{}, false, nil
+		}
+
+		return shortURLRecord{}, false, err
+	}
+
+	return record, true, nil
+}
+
+func scanShortURL(row pgx.Row) (string, bool, error) {
+	var shortURL string
+
+	err := row.Scan(&shortURL)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+
+		return "", false, err
+	}
+
+	return shortURL, true, nil
+}
+
+func makeShortURLCandidate(shortURLBase string, counter int) string {
+	if counter == 0 {
+		return shortURLBase
+	}
+
+	return fmt.Sprintf("%s_%d", shortURLBase, counter)
 }

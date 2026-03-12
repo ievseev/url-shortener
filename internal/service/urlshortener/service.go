@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"regexp"
 
-	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
+	urlrepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
 const patternURL = `^https?://[^\s/$.?#].[^\s]*$`
@@ -21,6 +21,7 @@ type Repository interface {
 	SaveURL(ctx context.Context, urlOrigin, shortURLBase string) (string, error)
 	SaveURLBatch(ctx context.Context, urlOrigins, shortURLBases []string) ([]string, error)
 	GetOriginURL(ctx context.Context, urlShort string) (string, error)
+	Ping(ctx context.Context) error
 }
 
 type URLService struct {
@@ -44,7 +45,7 @@ func (u *URLService) Shorten(ctx context.Context, url string) (string, error) {
 
 	shortURL, err := u.Repository.SaveURL(ctx, url, u.generateBaseShortURL(url))
 	if err != nil {
-		if errors.Is(err, URLRepo.ErrOriginalURLConflict) {
+		if errors.Is(err, urlrepo.ErrOriginalURLConflict) {
 			return shortURL, errors.Join(ErrorURLConflict, err)
 		}
 

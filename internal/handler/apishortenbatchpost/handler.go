@@ -3,7 +3,7 @@ package apishortenbatchpost
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
@@ -36,7 +36,6 @@ func New(baseURL string, urlShortener URLShortener, logger *slog.Logger) *Handle
 
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if err := validateRequestContentTypeValid(r); err != nil {
-		h.logger.Error("invalid content type", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -50,7 +49,6 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	var request []Request
 	if err := json.Unmarshal(body, &request); err != nil {
-		h.logger.Error("json unmarshal error", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -107,7 +105,7 @@ func validateRequestContentTypeValid(r *http.Request) error {
 	}
 
 	if mimeType != contentTypeApplicationJSON {
-		return errors.New("invalid content type")
+		return fmt.Errorf("invalid content type: got %q", mimeType)
 	}
 
 	return nil

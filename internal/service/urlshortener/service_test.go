@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
+	urlrepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
 func TestURLService_ShortenUsesRepositorySaveURL(t *testing.T) {
@@ -49,7 +49,7 @@ func TestURLService_ShortenReturnsRepositoryError(t *testing.T) {
 func TestURLService_ShortenReturnsConflictWithoutDroppingShortURL(t *testing.T) {
 	service, err := New(&stubRepository{
 		saveURLResult: "c984d06a",
-		saveURLErr:    URLRepo.ErrOriginalURLConflict,
+		saveURLErr:    urlrepo.ErrOriginalURLConflict,
 	})
 	if err != nil {
 		t.Fatalf("failed to create service: %v", err)
@@ -141,4 +141,8 @@ func (s *stubRepository) SaveURLBatch(
 
 func (s *stubRepository) GetOriginURL(ctx context.Context, urlShort string) (string, error) {
 	return "", nil
+}
+
+func (s *stubRepository) Ping(ctx context.Context) error {
+	return nil
 }

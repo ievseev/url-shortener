@@ -15,8 +15,8 @@ import (
 	pingGetHandler "github.com/ievseev/url-shortener/internal/handler/pingget"
 	shortenURLPostHandler "github.com/ievseev/url-shortener/internal/handler/shortenurlpost"
 	"github.com/ievseev/url-shortener/internal/middleware"
-	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
-	URLService "github.com/ievseev/url-shortener/internal/service/urlshortener"
+	urlrepo "github.com/ievseev/url-shortener/internal/repository/url"
+	urlservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 	fileStorage "github.com/ievseev/url-shortener/internal/storage"
 	"github.com/ievseev/url-shortener/internal/storage/db"
 	memoryStorage "github.com/ievseev/url-shortener/internal/storage/memory"
@@ -27,7 +27,7 @@ func Run() error {
 	appConfig := config.Init(logger)
 	ctx := context.Background()
 
-	repository, postgresRepo, closeStorage, err := initDependencies(ctx, logger, appConfig)
+	repository, closeStorage, err := initDependencies(ctx, logger, appConfig)
 	if err != nil {
 		logger.Error("dependency init error", "error", err)
 		return err
@@ -37,7 +37,7 @@ func Run() error {
 	}
 
 	// init services
-	urlServ, err := URLService.New(repository)
+	urlServ, err := urlservice.New(repository)
 	if err != nil {
 		logger.Error("url service init error", "error", err)
 		return err
@@ -55,12 +55,8 @@ func Run() error {
 	r.Use(middleware.RequestLogger(logger))
 	r.Use(middleware.GzipMiddleware)
 
-	if postgresRepo != nil {
-		pingHandler := pingGetHandler.New(postgresRepo, logger)
-		r.Get("/ping", pingHandler.Handle)
-	} else {
-		r.Get("/ping", http.NotFound)
-	}
+	pingHandler := pingGetHandler.New(repository, logger)
+	r.Get("/ping", pingHandler.Handle)
 
 	r.Post("/", shortenURLHandler.Handle)
 	r.Post("/api/shorten/batch", apiShortenBatchHandler.Handle)
@@ -78,39 +74,39 @@ func initDependencies(
 	ctx context.Context,
 	logger *slog.Logger,
 	appConfig *config.AppConfig,
-) (URLService.Repository, *db.Postgres, func(), error) {
+) (urlservice.Repository, func(), error) {
 	if appConfig.DatabaseDSN != "" {
 		dbStorage, err := db.NewPostgres(ctx, appConfig.DatabaseDSN)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
 		logger.Info("using postgres storage")
 
-		return dbStorage, dbStorage, dbStorage.Close, nil
+		return dbStorage, dbStorage.Close, nil
 	}
 
 	if appConfig.FileStoragePath != "" {
 		storage := fileStorage.New(logger, appConfig.FileStoragePath)
-		repository, err := URLRepo.New(logger, storage)
+		repository, err := urlrepo.New(logger, storage)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
 		logger.Info("using file storage", "path", appConfig.FileStoragePath)
 
-		return repository, nil, nil, nil
+		return repository, nil, nil
 	}
 
 	storage := memoryStorage.New()
-	repository, err := URLRepo.New(logger, storage)
+	repository, err := urlrepo.New(logger, storage)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	logger.Info("using in-memory storage")
 
-	return repository, nil, nil, nil
+	return repository, nil, nil
 }
 
 func setupLogger() *slog.Logger {

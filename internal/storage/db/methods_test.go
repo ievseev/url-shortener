@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	URLRepo "github.com/ievseev/url-shortener/internal/repository/url"
+	urlrepo "github.com/ievseev/url-shortener/internal/repository/url"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -24,7 +24,7 @@ func TestSaveURLTxReturnsExistingShortURLByOriginalLookup(t *testing.T) {
 		},
 		queries: []scriptedQuery{
 			{
-				sqlContains: "SELECT original_url",
+				sqlContains: "SELECT short_url, original_url",
 				args:        []any{"abc123"},
 				err:         pgx.ErrNoRows,
 			},
@@ -37,7 +37,7 @@ func TestSaveURLTxReturnsExistingShortURLByOriginalLookup(t *testing.T) {
 	}
 
 	shortURL, err := saveURLTx(context.Background(), queryer, "https://example.com", "abc123")
-	if !errors.Is(err, URLRepo.ErrOriginalURLConflict) {
+	if !errors.Is(err, urlrepo.ErrOriginalURLConflict) {
 		t.Fatalf("expected original URL conflict, got %v", err)
 	}
 
@@ -48,26 +48,57 @@ func TestSaveURLTxReturnsExistingShortURLByOriginalLookup(t *testing.T) {
 	queryer.assertDone()
 }
 
-func TestSaveURLBatchTxKeepsExistingShortURLOnDuplicate(t *testing.T) {
-	queryer := &scriptedQueryer{
+func TestSaveURLBatchTxFailsOnDuplicateOriginalURL(t *testing.T) {
+	queryer := &scriptedBatchQueryer{
 		t: t,
-		execs: []scriptedExec{
+		batches: []scriptedBatch{
 			{
-				sqlContains: "INSERT INTO short_urls",
-				args:        []any{"abc123", "https://example.com"},
-				tag:         pgconn.NewCommandTag("INSERT 0 1"),
-			},
-			{
-				sqlContains: "INSERT INTO short_urls",
-				args:        []any{"abc123", "https://example.com"},
-				tag:         pgconn.NewCommandTag("INSERT 0 0"),
+				queries: []scriptedBatchQuery{
+					{
+						sqlContains: "INSERT INTO short_urls",
+						args:        []any{"abc123", "https://example.com"},
+						values:      []any{"abc123"},
+					},
+					{
+						sqlContains: "INSERT INTO short_urls",
+						args:        []any{"abc123", "https://example.com"},
+						err:         pgx.ErrNoRows,
+					},
+				},
 			},
 		},
-		queries: []scriptedQuery{
+	}
+
+	_, err := saveURLBatchTx(
+		context.Background(),
+		queryer,
+		[]string{"https://example.com", "https://example.com"},
+		[]string{"abc123", "abc123"},
+	)
+	if !errors.Is(err, errBatchInsertConflict) {
+		t.Fatalf("expected batch insert conflict, got %v", err)
+	}
+
+	queryer.assertDone()
+}
+
+func TestSaveURLBatchTxReturnsCreatedShortURLsInInputOrder(t *testing.T) {
+	queryer := &scriptedBatchQueryer{
+		t: t,
+		batches: []scriptedBatch{
 			{
-				sqlContains: "SELECT original_url",
-				args:        []any{"abc123"},
-				values:      []any{"https://example.com"},
+				queries: []scriptedBatchQuery{
+					{
+						sqlContains: "INSERT INTO short_urls",
+						args:        []any{"abc123", "https://example.com/1"},
+						values:      []any{"abc123"},
+					},
+					{
+						sqlContains: "INSERT INTO short_urls",
+						args:        []any{"def456", "https://example.com/2"},
+						values:      []any{"def456"},
+					},
+				},
 			},
 		},
 	}
@@ -75,16 +106,79 @@ func TestSaveURLBatchTxKeepsExistingShortURLOnDuplicate(t *testing.T) {
 	shortURLs, err := saveURLBatchTx(
 		context.Background(),
 		queryer,
-		[]string{"https://example.com", "https://example.com"},
-		[]string{"abc123", "abc123"},
+		[]string{"https://example.com/1", "https://example.com/2"},
+		[]string{"abc123", "def456"},
 	)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	expected := []string{"abc123", "abc123"}
+	expected := []string{"abc123", "def456"}
 	if !reflect.DeepEqual(shortURLs, expected) {
 		t.Fatalf("expected short URLs %v, got %v", expected, shortURLs)
+	}
+
+	queryer.assertDone()
+}
+
+func TestSaveURLBatchTxFailsOnShortURLCollision(t *testing.T) {
+	queryer := &scriptedBatchQueryer{
+		t: t,
+		batches: []scriptedBatch{
+			{
+				queries: []scriptedBatchQuery{
+					{
+						sqlContains: "INSERT INTO short_urls",
+						args:        []any{"abc123", "https://example.com/1"},
+						values:      []any{"abc123"},
+					},
+					{
+						sqlContains: "INSERT INTO short_urls",
+						args:        []any{"abc123", "https://example.com/2"},
+						err:         pgx.ErrNoRows,
+					},
+				},
+			},
+		},
+	}
+
+	_, err := saveURLBatchTx(
+		context.Background(),
+		queryer,
+		[]string{"https://example.com/1", "https://example.com/2"},
+		[]string{"abc123", "abc123"},
+	)
+	if !errors.Is(err, errBatchInsertConflict) {
+		t.Fatalf("expected batch insert conflict, got %v", err)
+	}
+
+	queryer.assertDone()
+}
+
+func TestSaveURLBatchTxFailsOnExistingOriginalURL(t *testing.T) {
+	queryer := &scriptedBatchQueryer{
+		t: t,
+		batches: []scriptedBatch{
+			{
+				queries: []scriptedBatchQuery{
+					{
+						sqlContains: "INSERT INTO short_urls",
+						args:        []any{"abc123", "https://example.com"},
+						err:         pgx.ErrNoRows,
+					},
+				},
+			},
+		},
+	}
+
+	_, err := saveURLBatchTx(
+		context.Background(),
+		queryer,
+		[]string{"https://example.com"},
+		[]string{"abc123"},
+	)
+	if !errors.Is(err, errBatchInsertConflict) {
+		t.Fatalf("expected batch insert conflict, got %v", err)
 	}
 
 	queryer.assertDone()
@@ -156,6 +250,12 @@ func (s *scriptedQueryer) QueryRow(ctx context.Context, sql string, args ...any)
 	}
 }
 
+func (s *scriptedQueryer) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+	s.t.Helper()
+	s.t.Fatalf("unexpected SendBatch call with %d queued queries", b.Len())
+	return nil
+}
+
 func (s *scriptedQueryer) assertDone() {
 	s.t.Helper()
 
@@ -166,6 +266,121 @@ func (s *scriptedQueryer) assertDone() {
 	if len(s.queries) != 0 {
 		s.t.Fatalf("not all QueryRow expectations were used: %d remaining", len(s.queries))
 	}
+}
+
+type scriptedBatchQuery struct {
+	sqlContains string
+	args        []any
+	values      []any
+	err         error
+}
+
+type scriptedBatch struct {
+	queries  []scriptedBatchQuery
+	closeErr error
+}
+
+type scriptedBatchQueryer struct {
+	t       *testing.T
+	batches []scriptedBatch
+}
+
+func (s *scriptedBatchQueryer) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	s.t.Helper()
+	s.t.Fatalf("unexpected Exec call with sql %q", sql)
+	return pgconn.CommandTag{}, nil
+}
+
+func (s *scriptedBatchQueryer) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	s.t.Helper()
+	s.t.Fatalf("unexpected QueryRow call with sql %q", sql)
+	return nil
+}
+
+func (s *scriptedBatchQueryer) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+	s.t.Helper()
+
+	if len(s.batches) == 0 {
+		s.t.Fatalf("unexpected SendBatch call with %d queued queries", b.Len())
+	}
+
+	expected := s.batches[0]
+	s.batches = s.batches[1:]
+
+	if len(expected.queries) != b.Len() {
+		s.t.Fatalf("expected %d batched queries, got %d", len(expected.queries), b.Len())
+	}
+
+	for i, query := range expected.queries {
+		queued := b.QueuedQueries[i]
+		if !strings.Contains(queued.SQL, query.sqlContains) {
+			s.t.Fatalf("expected batched SQL to contain %q, got %q", query.sqlContains, queued.SQL)
+		}
+
+		if !reflect.DeepEqual(queued.Arguments, query.args) {
+			s.t.Fatalf("expected batched args %v, got %v", query.args, queued.Arguments)
+		}
+	}
+
+	return &scriptedBatchResults{
+		t:        s.t,
+		queries:  expected.queries,
+		closeErr: expected.closeErr,
+	}
+}
+
+func (s *scriptedBatchQueryer) assertDone() {
+	s.t.Helper()
+
+	if len(s.batches) != 0 {
+		s.t.Fatalf("not all batch expectations were used: %d remaining", len(s.batches))
+	}
+}
+
+type scriptedBatchResults struct {
+	t        *testing.T
+	queries  []scriptedBatchQuery
+	closeErr error
+	index    int
+}
+
+func (r *scriptedBatchResults) Exec() (pgconn.CommandTag, error) {
+	r.t.Helper()
+	r.t.Fatal("unexpected batch Exec call")
+	return pgconn.CommandTag{}, nil
+}
+
+func (r *scriptedBatchResults) Query() (pgx.Rows, error) {
+	r.t.Helper()
+	r.t.Fatal("unexpected batch Query call")
+	return nil, nil
+}
+
+func (r *scriptedBatchResults) QueryRow() pgx.Row {
+	r.t.Helper()
+
+	if r.index >= len(r.queries) {
+		r.t.Fatal("unexpected batch QueryRow call")
+	}
+
+	query := r.queries[r.index]
+	r.index++
+
+	return scriptedRow{
+		t:      r.t,
+		values: query.values,
+		err:    query.err,
+	}
+}
+
+func (r *scriptedBatchResults) Close() error {
+	r.t.Helper()
+
+	if r.index != len(r.queries) {
+		r.t.Fatalf("not all batch results were read: %d unread", len(r.queries)-r.index)
+	}
+
+	return r.closeErr
 }
 
 type scriptedRow struct {
