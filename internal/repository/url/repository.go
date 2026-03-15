@@ -3,11 +3,15 @@ package url
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 )
 
-var ErrOriginURLNotFound = errors.New("origin URL not found")
+var (
+	ErrOriginURLNotFound   = errors.New("origin URL not found")
+	ErrOriginalURLConflict = errors.New("original URL conflict")
+)
 
 type Storage interface {
 	Save(ctx context.Context, data map[string]string) error
@@ -15,7 +19,7 @@ type Storage interface {
 }
 
 type Repository struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	urlMap  map[string]string
 	storage Storage
 	logger  *slog.Logger
@@ -39,28 +43,88 @@ func New(logger *slog.Logger, storage Storage) (*Repository, error) {
 	return repo, nil
 }
 
-func (r *Repository) SaveURLPair(ctx context.Context, urlOrigin, urlShort string) error {
+func (r *Repository) SaveURL(ctx context.Context, urlOrigin, shortURLBase string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.urlMap[urlShort] = urlOrigin
+	updated := cloneMap(r.urlMap)
+	shortURL := reserveShortURL(updated, urlOrigin, shortURLBase)
 
-	if err := r.storage.Save(ctx, r.urlMap); err != nil {
+	if err := r.storage.Save(ctx, updated); err != nil {
 		r.logger.Error("save to storage error", "error", err)
-		return err
+		return "", err
 	}
 
-	r.logger.Debug("saved url pair", "urlShort", urlShort, "urlOrigin", urlOrigin)
-	return nil
+	r.urlMap = updated
+	r.logger.Debug("saved url pair", "urlShort", shortURL, "urlOrigin", urlOrigin)
+
+	return shortURL, nil
+}
+
+func (r *Repository) SaveURLBatch(
+	ctx context.Context,
+	urlOrigins, shortURLBases []string,
+) ([]string, error) {
+	if len(urlOrigins) != len(shortURLBases) {
+		return nil, errors.New("url origins and short URL bases length mismatch")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	updated := cloneMap(r.urlMap)
+	shortURLs := make([]string, len(urlOrigins))
+
+	for i := range urlOrigins {
+		shortURLs[i] = reserveShortURL(updated, urlOrigins[i], shortURLBases[i])
+	}
+
+	if err := r.storage.Save(ctx, updated); err != nil {
+		r.logger.Error("save batch to storage error", "error", err)
+		return nil, err
+	}
+
+	r.urlMap = updated
+
+	return shortURLs, nil
 }
 
 func (r *Repository) GetOriginURL(ctx context.Context, urlShort string) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	if result, ok := r.urlMap[urlShort]; ok {
 		return result, nil
 	}
 
 	return "", ErrOriginURLNotFound
+}
+
+func (r *Repository) Ping(ctx context.Context) error {
+	return nil
+}
+
+func reserveShortURL(urlMap map[string]string, urlOrigin, shortURLBase string) string {
+	shortURL := shortURLBase
+
+	for counter := 0; ; counter++ {
+		if counter > 0 {
+			shortURL = fmt.Sprintf("%s_%d", shortURLBase, counter)
+		}
+
+		existingURL, ok := urlMap[shortURL]
+		if !ok || existingURL == urlOrigin {
+			urlMap[shortURL] = urlOrigin
+			return shortURL
+		}
+	}
+}
+
+func cloneMap(source map[string]string) map[string]string {
+	result := make(map[string]string, len(source))
+	for key, value := range source {
+		result[key] = value
+	}
+
+	return result
 }

@@ -5,11 +5,14 @@ package shortenurlpost
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
 	"net/url"
+
+	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
 const (
@@ -37,7 +40,6 @@ func New(baseURL string, urlShortener URLShortener, logger *slog.Logger) *Handle
 
 func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if err := validateRequestContentTypeValid(r); err != nil {
-		c.logger.Error("invalid content type", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -53,13 +55,24 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	shortURL, err := c.URLShortener.Shorten(r.Context(), originalURL)
 	if err != nil {
+		if errors.Is(err, urlshortenerservice.ErrorURLConflict) {
+			result, joinErr := url.JoinPath(c.baseURL, shortURL)
+			if joinErr != nil {
+				c.logger.Error("join path error", "error", joinErr)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(result))
+			return
+		}
+
 		c.logger.Error("shorten service error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
-	w.WriteHeader(http.StatusCreated)
 
 	result, err := url.JoinPath(c.baseURL, shortURL)
 	if err != nil {
@@ -68,6 +81,8 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set(contentTypeHeaderName, contentTypeTextPlain)
+	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(result))
 }
 
@@ -80,7 +95,7 @@ func validateRequestContentTypeValid(r *http.Request) error {
 	}
 
 	if mimeType != contentTypeTextPlain {
-		return errors.New("invalid content type")
+		return fmt.Errorf("invalid content type: got %q", mimeType)
 	}
 
 	return nil

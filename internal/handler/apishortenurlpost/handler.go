@@ -6,11 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
 	"net/url"
+
+	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
 const (
@@ -38,7 +41,6 @@ func New(baseURL string, urlShortener URLShortener, logger *slog.Logger) *Handle
 
 func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	if err := validateRequestContentTypeValid(r); err != nil {
-		c.logger.Error("invalid content type", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -53,18 +55,41 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var request Request
 	err = json.Unmarshal(body, &request)
 	if err != nil {
-		c.logger.Error("json unmarshal error", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	shortURL, err := c.URLShortener.Shorten(r.Context(), request.URL)
 	if err != nil {
+		if errors.Is(err, urlshortenerservice.ErrorURLConflict) {
+			c.writeResponse(w, shortURL, http.StatusConflict)
+			return
+		}
+
 		c.logger.Error("shorten service error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
+	c.writeResponse(w, shortURL, http.StatusCreated)
+}
+
+func validateRequestContentTypeValid(r *http.Request) error {
+	contentTypeHeader := r.Header.Get(contentTypeHeaderName)
+	// из всего заголовка проверяем только mime, остальная часть может меняться
+	mimeType, _, err := mime.ParseMediaType(contentTypeHeader)
+	if err != nil {
+		return err
+	}
+
+	if mimeType != contentTypeApplicationJSON {
+		return fmt.Errorf("invalid content type: got %q", mimeType)
+	}
+
+	return nil
+}
+
+func (c *Handler) writeResponse(w http.ResponseWriter, shortURL string, statusCode int) {
 	result, err := url.JoinPath(c.baseURL, shortURL)
 	if err != nil {
 		c.logger.Error("join path error", "error", err)
@@ -80,21 +105,6 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set(contentTypeHeaderName, contentTypeApplicationJSON)
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(statusCode)
 	w.Write(response)
-}
-
-func validateRequestContentTypeValid(r *http.Request) error {
-	contentTypeHeader := r.Header.Get(contentTypeHeaderName)
-	// из всего заголовка проверяем только mime, остальная часть может меняться
-	mimeType, _, err := mime.ParseMediaType(contentTypeHeader)
-	if err != nil {
-		return err
-	}
-
-	if mimeType != contentTypeApplicationJSON {
-		return errors.New("invalid content type")
-	}
-
-	return nil
 }
