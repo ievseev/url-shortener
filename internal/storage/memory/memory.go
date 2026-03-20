@@ -3,39 +3,52 @@ package memory
 import (
 	"context"
 	"sync"
+
+	urlrepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
 type Storage struct {
 	mu   sync.RWMutex
-	data map[string]string
+	data urlrepo.Snapshot
 }
 
 func New() *Storage {
 	return &Storage{
-		data: make(map[string]string),
+		data: urlrepo.Snapshot{
+			URLs:     make(map[string]string),
+			UserURLs: make(map[string][]string),
+		},
 	}
 }
 
-func (s *Storage) Save(ctx context.Context, data map[string]string) error {
+func (s *Storage) Save(ctx context.Context, data urlrepo.Snapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.data = clone(data)
+	s.data = cloneSnapshot(data)
 
 	return nil
 }
 
-func (s *Storage) Load(ctx context.Context) (map[string]string, error) {
+func (s *Storage) Load(ctx context.Context) (urlrepo.Snapshot, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return clone(s.data), nil
+	return cloneSnapshot(s.data), nil
 }
 
-func clone(source map[string]string) map[string]string {
-	result := make(map[string]string, len(source))
-	for key, value := range source {
-		result[key] = value
+func cloneSnapshot(source urlrepo.Snapshot) urlrepo.Snapshot {
+	result := urlrepo.Snapshot{
+		URLs:     make(map[string]string, len(source.URLs)),
+		UserURLs: make(map[string][]string, len(source.UserURLs)),
+	}
+
+	for key, value := range source.URLs {
+		result.URLs[key] = value
+	}
+
+	for userID, shortURLs := range source.UserURLs {
+		result.UserURLs[userID] = append([]string(nil), shortURLs...)
 	}
 
 	return result

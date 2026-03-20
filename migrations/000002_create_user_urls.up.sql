@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS user_urls (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id VARCHAR(128) NOT NULL,
+    url_id BIGINT NOT NULL REFERENCES short_urls(id) ON DELETE CASCADE,
+    UNIQUE (user_id, url_id)
+);

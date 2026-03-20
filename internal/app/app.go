@@ -11,6 +11,7 @@ import (
 	"github.com/ievseev/url-shortener/internal/config"
 	apiShortenBatchPostHandler "github.com/ievseev/url-shortener/internal/handler/apishortenbatchpost"
 	apiShortenURLPostHandler "github.com/ievseev/url-shortener/internal/handler/apishortenurlpost"
+	apiUserURLsGetHandler "github.com/ievseev/url-shortener/internal/handler/apiuserurlsget"
 	expandURLGetHandler "github.com/ievseev/url-shortener/internal/handler/expandurlget"
 	pingGetHandler "github.com/ievseev/url-shortener/internal/handler/pingget"
 	shortenURLPostHandler "github.com/ievseev/url-shortener/internal/handler/shortenurlpost"
@@ -48,6 +49,7 @@ func Run() error {
 	expandURLHandler := expandURLGetHandler.New(urlServ, logger)
 	apiShortenURLHandler := apiShortenURLPostHandler.New(appConfig.BaseURL, urlServ, logger)
 	apiShortenBatchHandler := apiShortenBatchPostHandler.New(appConfig.BaseURL, urlServ, logger)
+	apiUserURLsHandler := apiUserURLsGetHandler.New(appConfig.BaseURL, urlServ, logger)
 
 	// init router
 	r := chi.NewRouter()
@@ -58,9 +60,14 @@ func Run() error {
 	pingHandler := pingGetHandler.New(repository, logger)
 	r.Get("/ping", pingHandler.Handle)
 
-	r.Post("/", shortenURLHandler.Handle)
-	r.Post("/api/shorten/batch", apiShortenBatchHandler.Handle)
-	r.Post("/api/shorten", apiShortenURLHandler.Handle)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware(logger))
+		r.Post("/", shortenURLHandler.Handle)
+		r.Post("/api/shorten/batch", apiShortenBatchHandler.Handle)
+		r.Post("/api/shorten", apiShortenURLHandler.Handle)
+		r.Get("/api/user/urls", apiUserURLsHandler.Handle)
+	})
+
 	r.Get("/{id}", expandURLHandler.Handle)
 
 	logger.Info("Starting HTTP server", "address", appConfig.ServerAddress)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ievseev/url-shortener/internal/model"
 	urlrepo "github.com/ievseev/url-shortener/internal/repository/url"
 )
 
@@ -18,7 +19,7 @@ func TestURLService_ShortenUsesRepositorySaveURL(t *testing.T) {
 		t.Fatalf("failed to create service: %v", err)
 	}
 
-	shortURL, err := service.Shorten(context.Background(), "https://example.com")
+	shortURL, err := service.Shorten(context.Background(), "user-1", "https://example.com")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -30,6 +31,10 @@ func TestURLService_ShortenUsesRepositorySaveURL(t *testing.T) {
 	if repository.saveURLBase != "c984d06a" {
 		t.Fatalf("expected generated short URL base %q, got %q", "c984d06a", repository.saveURLBase)
 	}
+
+	if repository.saveURLUserID != "user-1" {
+		t.Fatalf("expected user ID %q, got %q", "user-1", repository.saveURLUserID)
+	}
 }
 
 func TestURLService_ShortenReturnsRepositoryError(t *testing.T) {
@@ -40,7 +45,7 @@ func TestURLService_ShortenReturnsRepositoryError(t *testing.T) {
 		t.Fatalf("failed to create service: %v", err)
 	}
 
-	_, err = service.Shorten(context.Background(), "https://example.com")
+	_, err = service.Shorten(context.Background(), "user-1", "https://example.com")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -55,7 +60,7 @@ func TestURLService_ShortenReturnsConflictWithoutDroppingShortURL(t *testing.T) 
 		t.Fatalf("failed to create service: %v", err)
 	}
 
-	shortURL, err := service.Shorten(context.Background(), "https://example.com")
+	shortURL, err := service.Shorten(context.Background(), "user-1", "https://example.com")
 	if !errors.Is(err, ErrorURLConflict) {
 		t.Fatalf("expected conflict error, got %v", err)
 	}
@@ -77,6 +82,7 @@ func TestURLService_ShortenBatch(t *testing.T) {
 
 	shortURLs, err := service.ShortenBatch(
 		context.Background(),
+		"user-1",
 		[]string{"https://example.com", "https://example.org"},
 	)
 	if err != nil {
@@ -101,9 +107,43 @@ func TestURLService_ShortenBatchReturnsValidationError(t *testing.T) {
 		t.Fatalf("failed to create service: %v", err)
 	}
 
-	_, err = service.ShortenBatch(context.Background(), []string{"bad-url"})
+	_, err = service.ShortenBatch(context.Background(), "user-1", []string{"bad-url"})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestURLService_GetUserURLs(t *testing.T) {
+	repository := &stubRepository{
+		userURLsResult: []model.UserURL{
+			{ShortURL: "abc123", OriginalURL: "https://example.com"},
+		},
+	}
+
+	service, err := New(repository)
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	userURLs, err := service.GetUserURLs(context.Background(), "user-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(userURLs) != 1 {
+		t.Fatalf("expected 1 user URL, got %d", len(userURLs))
+	}
+}
+
+func TestURLService_ReturnsUnauthorizedWithoutUserID(t *testing.T) {
+	service, err := New(&stubRepository{})
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	_, err = service.Shorten(context.Background(), "", "https://example.com")
+	if !errors.Is(err, ErrorUnauthorized) {
+		t.Fatalf("expected unauthorized error, got %v", err)
 	}
 }
 
@@ -111,12 +151,17 @@ type stubRepository struct {
 	saveURLResult      string
 	saveURLErr         error
 	saveURLBase        string
+	saveURLUserID      string
 	saveURLBatchResult []string
 	saveURLBatchErr    error
 	saveURLBatchBases  []string
+	saveURLBatchUserID string
+	userURLsResult     []model.UserURL
+	userURLsErr        error
 }
 
-func (s *stubRepository) SaveURL(ctx context.Context, urlOrigin, shortURLBase string) (string, error) {
+func (s *stubRepository) SaveURL(ctx context.Context, userID, urlOrigin, shortURLBase string) (string, error) {
+	s.saveURLUserID = userID
 	s.saveURLBase = shortURLBase
 
 	if s.saveURLErr != nil {
@@ -128,8 +173,10 @@ func (s *stubRepository) SaveURL(ctx context.Context, urlOrigin, shortURLBase st
 
 func (s *stubRepository) SaveURLBatch(
 	ctx context.Context,
+	userID string,
 	urlOrigins, shortURLBases []string,
 ) ([]string, error) {
+	s.saveURLBatchUserID = userID
 	s.saveURLBatchBases = append([]string(nil), shortURLBases...)
 
 	if s.saveURLBatchErr != nil {
@@ -141,6 +188,14 @@ func (s *stubRepository) SaveURLBatch(
 
 func (s *stubRepository) GetOriginURL(ctx context.Context, urlShort string) (string, error) {
 	return "", nil
+}
+
+func (s *stubRepository) GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error) {
+	if s.userURLsErr != nil {
+		return nil, s.userURLsErr
+	}
+
+	return append([]model.UserURL(nil), s.userURLsResult...), nil
 }
 
 func (s *stubRepository) Ping(ctx context.Context) error {

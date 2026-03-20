@@ -9,6 +9,8 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+
+	"github.com/ievseev/url-shortener/internal/auth"
 )
 
 const (
@@ -17,7 +19,7 @@ const (
 )
 
 type URLShortener interface {
-	ShortenBatch(ctx context.Context, urls []string) ([]string, error)
+	ShortenBatch(ctx context.Context, userID string, urls []string) ([]string, error)
 }
 
 type Handler struct {
@@ -63,7 +65,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		urls[i] = item.OriginalURL
 	}
 
-	shortURLs, err := h.URLShortener.ShortenBatch(r.Context(), urls)
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	shortURLs, err := h.URLShortener.ShortenBatch(r.Context(), userID, urls)
 	if err != nil {
 		h.logger.Error("shorten batch service error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
