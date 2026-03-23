@@ -11,6 +11,7 @@ import (
 	"github.com/ievseev/url-shortener/internal/config"
 	apiShortenBatchPostHandler "github.com/ievseev/url-shortener/internal/handler/apishortenbatchpost"
 	apiShortenURLPostHandler "github.com/ievseev/url-shortener/internal/handler/apishortenurlpost"
+	apiUserURLsDeleteHandler "github.com/ievseev/url-shortener/internal/handler/apiuserurlsdelete"
 	apiUserURLsGetHandler "github.com/ievseev/url-shortener/internal/handler/apiuserurlsget"
 	expandURLGetHandler "github.com/ievseev/url-shortener/internal/handler/expandurlget"
 	pingGetHandler "github.com/ievseev/url-shortener/internal/handler/pingget"
@@ -50,6 +51,7 @@ func Run() error {
 	apiShortenURLHandler := apiShortenURLPostHandler.New(appConfig.BaseURL, urlServ, logger)
 	apiShortenBatchHandler := apiShortenBatchPostHandler.New(appConfig.BaseURL, urlServ, logger)
 	apiUserURLsHandler := apiUserURLsGetHandler.New(appConfig.BaseURL, urlServ, logger)
+	apiUserURLsDeleteHandler := apiUserURLsDeleteHandler.New(urlServ, logger)
 
 	// init router
 	r := chi.NewRouter()
@@ -66,6 +68,7 @@ func Run() error {
 		r.Post("/api/shorten/batch", apiShortenBatchHandler.Handle)
 		r.Post("/api/shorten", apiShortenURLHandler.Handle)
 		r.Get("/api/user/urls", apiUserURLsHandler.Handle)
+		r.Delete("/api/user/urls", apiUserURLsDeleteHandler.Handle)
 	})
 
 	r.Get("/{id}", expandURLHandler.Handle)

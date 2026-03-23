@@ -43,8 +43,10 @@ func (s *Storage) Load(ctx context.Context) (urlrepo.Snapshot, error) {
 		if os.IsNotExist(err) {
 			s.logger.Info("storage file does not exist, starting with empty data")
 			return urlrepo.Snapshot{
-				URLs:     make(map[string]string),
-				UserURLs: make(map[string][]string),
+				URLs:        make(map[string]string),
+				UserURLs:    make(map[string][]string),
+				DeletedURLs: make(map[string]bool),
+				Creators:    make(map[string]string),
 			}, nil
 		}
 		s.logger.Error("read file error", "error", err)
@@ -53,8 +55,10 @@ func (s *Storage) Load(ctx context.Context) (urlrepo.Snapshot, error) {
 
 	if len(data) == 0 {
 		return urlrepo.Snapshot{
-			URLs:     make(map[string]string),
-			UserURLs: make(map[string][]string),
+			URLs:        make(map[string]string),
+			UserURLs:    make(map[string][]string),
+			DeletedURLs: make(map[string]bool),
+			Creators:    make(map[string]string),
 		}, nil
 	}
 
@@ -65,6 +69,12 @@ func (s *Storage) Load(ctx context.Context) (urlrepo.Snapshot, error) {
 		}
 		if snapshot.UserURLs == nil {
 			snapshot.UserURLs = make(map[string][]string)
+		}
+		if snapshot.DeletedURLs == nil {
+			snapshot.DeletedURLs = make(map[string]bool)
+		}
+		if snapshot.Creators == nil {
+			snapshot.Creators = make(map[string]string)
 		}
 
 		return snapshot, nil
@@ -77,7 +87,9 @@ func (s *Storage) Load(ctx context.Context) (urlrepo.Snapshot, error) {
 	}
 
 	return urlrepo.Snapshot{
-		URLs:     legacyURLMap,
-		UserURLs: make(map[string][]string),
+		URLs:        legacyURLMap,
+		UserURLs:    make(map[string][]string),
+		DeletedURLs: make(map[string]bool),
+		Creators:    make(map[string]string),
 	}, nil
 }

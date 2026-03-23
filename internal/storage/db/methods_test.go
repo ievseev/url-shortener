@@ -23,7 +23,7 @@ func TestSaveURLTxCreatesUserOwnershipForNewURL(t *testing.T) {
 			},
 			{
 				sqlContains: "INSERT INTO user_urls",
-				args:        []any{"user-1", int64(42)},
+				args:        []any{"user-1", int64(42), true},
 				tag:         pgconn.NewCommandTag("INSERT 0 1"),
 			},
 		},
@@ -59,7 +59,7 @@ func TestSaveURLTxReturnsExistingShortURLByOriginalLookup(t *testing.T) {
 			},
 			{
 				sqlContains: "INSERT INTO user_urls",
-				args:        []any{"user-2", int64(7)},
+				args:        []any{"user-2", int64(7), false},
 				tag:         pgconn.NewCommandTag("INSERT 0 1"),
 			},
 		},
@@ -100,7 +100,7 @@ func TestSaveURLBatchTxReturnsShortURLsInInputOrder(t *testing.T) {
 			},
 			{
 				sqlContains: "INSERT INTO user_urls",
-				args:        []any{"user-1", int64(1)},
+				args:        []any{"user-1", int64(1), true},
 				tag:         pgconn.NewCommandTag("INSERT 0 1"),
 			},
 			{
@@ -110,7 +110,7 @@ func TestSaveURLBatchTxReturnsShortURLsInInputOrder(t *testing.T) {
 			},
 			{
 				sqlContains: "INSERT INTO user_urls",
-				args:        []any{"user-1", int64(1)},
+				args:        []any{"user-1", int64(1), false},
 				tag:         pgconn.NewCommandTag("INSERT 0 0"),
 			},
 		},
@@ -142,6 +142,46 @@ func TestSaveURLBatchTxReturnsShortURLsInInputOrder(t *testing.T) {
 	expected := []string{"abc123", "abc123"}
 	if !reflect.DeepEqual(shortURLs, expected) {
 		t.Fatalf("expected short URLs %v, got %v", expected, shortURLs)
+	}
+
+	queryer.assertDone()
+}
+
+func TestGetOriginURLTxReturnsDeletedError(t *testing.T) {
+	queryer := &scriptedQueryer{
+		t: t,
+		queries: []scriptedQuery{
+			{
+				sqlContains: "SELECT original_url, is_deleted",
+				args:        []any{"abc123"},
+				values:      []any{"https://example.com", true},
+			},
+		},
+	}
+
+	_, err := getOriginURLTx(context.Background(), queryer, "abc123")
+	if !errors.Is(err, urlrepo.ErrOriginURLDeleted) {
+		t.Fatalf("expected deleted error, got %v", err)
+	}
+
+	queryer.assertDone()
+}
+
+func TestDeleteUserURLsTxUsesBatchUpdate(t *testing.T) {
+	queryer := &scriptedQueryer{
+		t: t,
+		execs: []scriptedExec{
+			{
+				sqlContains: "UPDATE short_urls AS su",
+				args:        []any{"user-1", []string{"abc123", "def456"}},
+				tag:         pgconn.NewCommandTag("UPDATE 2"),
+			},
+		},
+	}
+
+	err := deleteUserURLsTx(context.Background(), queryer, "user-1", []string{"abc123", "def456"})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
 	}
 
 	queryer.assertDone()

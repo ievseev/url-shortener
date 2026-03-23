@@ -16,6 +16,7 @@ const patternURL = `^https?://[^\s/$.?#].[^\s]*$`
 var (
 	ErrorInvalidURL   = errors.New("invalid url")
 	ErrorURLConflict  = errors.New("url conflict")
+	ErrorURLDeleted   = errors.New("url deleted")
 	ErrorUnauthorized = errors.New("unauthorized")
 )
 
@@ -24,6 +25,7 @@ type Repository interface {
 	SaveURLBatch(ctx context.Context, userID string, urlOrigins, shortURLBases []string) ([]string, error)
 	GetOriginURL(ctx context.Context, urlShort string) (string, error)
 	GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error)
+	DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error
 	Ping(ctx context.Context) error
 }
 
@@ -93,6 +95,10 @@ func (u *URLService) generateBaseShortURL(url string) string {
 func (u *URLService) Expand(ctx context.Context, shortURL string) (string, error) {
 	URL, err := u.Repository.GetOriginURL(ctx, shortURL)
 	if err != nil {
+		if errors.Is(err, urlrepo.ErrOriginURLDeleted) {
+			return "", errors.Join(ErrorURLDeleted, err)
+		}
+
 		return URL, fmt.Errorf("get origin url error: %w", err)
 	}
 
@@ -110,4 +116,16 @@ func (u *URLService) GetUserURLs(ctx context.Context, userID string) ([]model.Us
 	}
 
 	return userURLs, nil
+}
+
+func (u *URLService) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
+	if userID == "" {
+		return ErrorUnauthorized
+	}
+
+	if err := u.Repository.DeleteUserURLs(ctx, userID, shortURLs); err != nil {
+		return fmt.Errorf("delete user urls error: %w", err)
+	}
+
+	return nil
 }

@@ -64,14 +64,67 @@ func TestRepositorySaveURLDoesNotDuplicateUserHistory(t *testing.T) {
 	}
 }
 
+func TestRepositoryDeleteUserURLsMarksCreatorURLAsDeleted(t *testing.T) {
+	repository, err := New(slog.Default(), &stubStorage{})
+	if err != nil {
+		t.Fatalf("create repository: %v", err)
+	}
+
+	_, err = repository.SaveURL(context.Background(), "user-1", "https://example.com", "abc123")
+	if err != nil {
+		t.Fatalf("save url: %v", err)
+	}
+
+	if err := repository.DeleteUserURLs(context.Background(), "user-1", []string{"abc123"}); err != nil {
+		t.Fatalf("delete user urls: %v", err)
+	}
+
+	_, err = repository.GetOriginURL(context.Background(), "abc123")
+	if !errors.Is(err, ErrOriginURLDeleted) {
+		t.Fatalf("expected deleted error, got %v", err)
+	}
+}
+
+func TestRepositoryDeleteUserURLsDoesNotDeleteForeignURL(t *testing.T) {
+	repository, err := New(slog.Default(), &stubStorage{})
+	if err != nil {
+		t.Fatalf("create repository: %v", err)
+	}
+
+	_, err = repository.SaveURL(context.Background(), "user-1", "https://example.com", "abc123")
+	if err != nil {
+		t.Fatalf("save url: %v", err)
+	}
+
+	_, err = repository.SaveURL(context.Background(), "user-2", "https://example.com", "abc123")
+	if !errors.Is(err, ErrOriginalURLConflict) {
+		t.Fatalf("expected original URL conflict, got %v", err)
+	}
+
+	if err := repository.DeleteUserURLs(context.Background(), "user-2", []string{"abc123"}); err != nil {
+		t.Fatalf("delete user urls: %v", err)
+	}
+
+	originalURL, err := repository.GetOriginURL(context.Background(), "abc123")
+	if err != nil {
+		t.Fatalf("expected URL to stay accessible, got %v", err)
+	}
+
+	if originalURL != "https://example.com" {
+		t.Fatalf("expected original URL %q, got %q", "https://example.com", originalURL)
+	}
+}
+
 type stubStorage struct {
 	snapshot Snapshot
 }
 
 func (s *stubStorage) Save(ctx context.Context, snapshot Snapshot) error {
 	s.snapshot = Snapshot{
-		URLs:     cloneMap(snapshot.URLs),
-		UserURLs: cloneUserURLs(snapshot.UserURLs),
+		URLs:        cloneMap(snapshot.URLs),
+		UserURLs:    cloneUserURLs(snapshot.UserURLs),
+		DeletedURLs: cloneDeletedURLs(snapshot.DeletedURLs),
+		Creators:    cloneCreators(snapshot.Creators),
 	}
 
 	return nil
@@ -79,7 +132,9 @@ func (s *stubStorage) Save(ctx context.Context, snapshot Snapshot) error {
 
 func (s *stubStorage) Load(ctx context.Context) (Snapshot, error) {
 	return Snapshot{
-		URLs:     cloneMap(s.snapshot.URLs),
-		UserURLs: cloneUserURLs(s.snapshot.UserURLs),
+		URLs:        cloneMap(s.snapshot.URLs),
+		UserURLs:    cloneUserURLs(s.snapshot.UserURLs),
+		DeletedURLs: cloneDeletedURLs(s.snapshot.DeletedURLs),
+		Creators:    cloneCreators(s.snapshot.Creators),
 	}, nil
 }

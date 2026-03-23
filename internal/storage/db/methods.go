@@ -34,9 +34,14 @@ const (
 		WHERE original_url = $1
 	`
 	insertUserURLQuery = `
-		INSERT INTO user_urls (user_id, url_id)
-		VALUES ($1, $2)
+		INSERT INTO user_urls (user_id, url_id, is_creator)
+		VALUES ($1, $2, $3)
 		ON CONFLICT DO NOTHING
+	`
+	selectOriginURLQuery = `
+		SELECT original_url, is_deleted
+		FROM short_urls
+		WHERE short_url = $1
 	`
 	selectUserURLsQuery = `
 		SELECT su.short_url, su.original_url
@@ -44,6 +49,16 @@ const (
 		JOIN short_urls su ON su.id = uu.url_id
 		WHERE uu.user_id = $1
 		ORDER BY uu.id
+	`
+	deleteUserURLsQuery = `
+		UPDATE short_urls AS su
+		SET is_deleted = TRUE
+		FROM user_urls AS uu
+		WHERE su.id = uu.url_id
+			AND uu.user_id = $1
+			AND uu.is_creator = TRUE
+			AND su.short_url = ANY($2)
+			AND su.is_deleted = FALSE
 	`
 )
 
@@ -109,26 +124,7 @@ func (p *Postgres) SaveURLBatch(
 }
 
 func (p *Postgres) GetOriginURL(ctx context.Context, urlShort string) (string, error) {
-	var originalURL string
-
-	err := p.dbPool.QueryRow(
-		ctx,
-		`
-			SELECT original_url
-			FROM short_urls
-			WHERE short_url = $1
-		`,
-		urlShort,
-	).Scan(&originalURL)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return "", urlrepo.ErrOriginURLNotFound
-		}
-
-		return "", err
-	}
-
-	return originalURL, nil
+	return getOriginURLTx(ctx, p.dbPool, urlShort)
 }
 
 func (p *Postgres) GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error) {
@@ -153,6 +149,10 @@ func (p *Postgres) GetUserURLs(ctx context.Context, userID string) ([]model.User
 	}
 
 	return result, nil
+}
+
+func (p *Postgres) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
+	return deleteUserURLsTx(ctx, p.dbPool, userID, shortURLs)
 }
 
 func saveURLBatchTx(
@@ -191,7 +191,7 @@ func saveURLTx(
 			return "", err
 		}
 		if inserted {
-			if err := ensureUserURLTx(ctx, queryer, userID, record.id); err != nil {
+			if err := ensureUserURLTx(ctx, queryer, userID, record.id, true); err != nil {
 				return "", err
 			}
 
@@ -204,7 +204,7 @@ func saveURLTx(
 		}
 		if found {
 			if existingRecord.originalURL == urlOrigin {
-				if err := ensureUserURLTx(ctx, queryer, userID, existingRecord.id); err != nil {
+				if err := ensureUserURLTx(ctx, queryer, userID, existingRecord.id, false); err != nil {
 					return "", err
 				}
 
@@ -222,7 +222,7 @@ func saveURLTx(
 			continue
 		}
 
-		if err := ensureUserURLTx(ctx, queryer, userID, existingRecord.id); err != nil {
+		if err := ensureUserURLTx(ctx, queryer, userID, existingRecord.id, false); err != nil {
 			return "", err
 		}
 
@@ -272,8 +272,39 @@ func getURLRecordByOriginalTx(
 	return scanURLRecord(queryer.QueryRow(ctx, selectByOriginalURLQuery, urlOrigin))
 }
 
-func ensureUserURLTx(ctx context.Context, queryer urlQueryer, userID string, urlID int64) error {
-	_, err := queryer.Exec(ctx, insertUserURLQuery, userID, urlID)
+func ensureUserURLTx(ctx context.Context, queryer urlQueryer, userID string, urlID int64, isCreator bool) error {
+	_, err := queryer.Exec(ctx, insertUserURLQuery, userID, urlID, isCreator)
+	return err
+}
+
+func getOriginURLTx(ctx context.Context, queryer urlQueryer, urlShort string) (string, error) {
+	var (
+		originalURL string
+		isDeleted   bool
+	)
+
+	err := queryer.QueryRow(ctx, selectOriginURLQuery, urlShort).Scan(&originalURL, &isDeleted)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", urlrepo.ErrOriginURLNotFound
+		}
+
+		return "", err
+	}
+
+	if isDeleted {
+		return "", urlrepo.ErrOriginURLDeleted
+	}
+
+	return originalURL, nil
+}
+
+func deleteUserURLsTx(ctx context.Context, queryer urlQueryer, userID string, shortURLs []string) error {
+	if len(shortURLs) == 0 {
+		return nil
+	}
+
+	_, err := queryer.Exec(ctx, deleteUserURLsQuery, userID, shortURLs)
 	return err
 }
 

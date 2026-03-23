@@ -135,6 +135,60 @@ func TestURLService_GetUserURLs(t *testing.T) {
 	}
 }
 
+func TestURLService_DeleteUserURLsUsesRepository(t *testing.T) {
+	repository := &stubRepository{}
+
+	service, err := New(repository)
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	err = service.DeleteUserURLs(context.Background(), "user-1", []string{"abc123", "def456"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if repository.deleteUserURLsUserID != "user-1" {
+		t.Fatalf("expected user ID %q, got %q", "user-1", repository.deleteUserURLsUserID)
+	}
+
+	expected := []string{"abc123", "def456"}
+	if len(repository.deleteUserURLsShortURLs) != len(expected) {
+		t.Fatalf("expected %d short URLs, got %d", len(expected), len(repository.deleteUserURLsShortURLs))
+	}
+	for i := range expected {
+		if repository.deleteUserURLsShortURLs[i] != expected[i] {
+			t.Fatalf("expected short URL %q at index %d, got %q", expected[i], i, repository.deleteUserURLsShortURLs[i])
+		}
+	}
+}
+
+func TestURLService_DeleteUserURLsReturnsUnauthorizedWithoutUserID(t *testing.T) {
+	service, err := New(&stubRepository{})
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	err = service.DeleteUserURLs(context.Background(), "", []string{"abc123"})
+	if !errors.Is(err, ErrorUnauthorized) {
+		t.Fatalf("expected unauthorized error, got %v", err)
+	}
+}
+
+func TestURLService_ExpandReturnsDeletedError(t *testing.T) {
+	service, err := New(&stubRepository{
+		originURLErr: urlrepo.ErrOriginURLDeleted,
+	})
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	_, err = service.Expand(context.Background(), "abc123")
+	if !errors.Is(err, ErrorURLDeleted) {
+		t.Fatalf("expected deleted error, got %v", err)
+	}
+}
+
 func TestURLService_ReturnsUnauthorizedWithoutUserID(t *testing.T) {
 	service, err := New(&stubRepository{})
 	if err != nil {
@@ -148,16 +202,21 @@ func TestURLService_ReturnsUnauthorizedWithoutUserID(t *testing.T) {
 }
 
 type stubRepository struct {
-	saveURLResult      string
-	saveURLErr         error
-	saveURLBase        string
-	saveURLUserID      string
-	saveURLBatchResult []string
-	saveURLBatchErr    error
-	saveURLBatchBases  []string
-	saveURLBatchUserID string
-	userURLsResult     []model.UserURL
-	userURLsErr        error
+	saveURLResult           string
+	saveURLErr              error
+	saveURLBase             string
+	saveURLUserID           string
+	saveURLBatchResult      []string
+	saveURLBatchErr         error
+	saveURLBatchBases       []string
+	saveURLBatchUserID      string
+	userURLsResult          []model.UserURL
+	userURLsErr             error
+	originURLResult         string
+	originURLErr            error
+	deleteUserURLsErr       error
+	deleteUserURLsUserID    string
+	deleteUserURLsShortURLs []string
 }
 
 func (s *stubRepository) SaveURL(ctx context.Context, userID, urlOrigin, shortURLBase string) (string, error) {
@@ -187,7 +246,11 @@ func (s *stubRepository) SaveURLBatch(
 }
 
 func (s *stubRepository) GetOriginURL(ctx context.Context, urlShort string) (string, error) {
-	return "", nil
+	if s.originURLErr != nil {
+		return "", s.originURLErr
+	}
+
+	return s.originURLResult, nil
 }
 
 func (s *stubRepository) GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error) {
@@ -200,4 +263,11 @@ func (s *stubRepository) GetUserURLs(ctx context.Context, userID string) ([]mode
 
 func (s *stubRepository) Ping(ctx context.Context) error {
 	return nil
+}
+
+func (s *stubRepository) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
+	s.deleteUserURLsUserID = userID
+	s.deleteUserURLsShortURLs = append([]string(nil), shortURLs...)
+
+	return s.deleteUserURLsErr
 }
