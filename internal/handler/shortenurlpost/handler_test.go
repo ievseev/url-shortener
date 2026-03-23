@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
+	"github.com/ievseev/url-shortener/internal/auth"
 	"github.com/ievseev/url-shortener/internal/handler/shortenurlpost/mocks"
 	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
@@ -35,7 +36,7 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			contentType: "text/plain",
 			mockSetup: func(mockURLShortener *mocks.MockUrlShortener) {
 				mockURLShortener.EXPECT().
-					Shorten(gomock.Any(), "https://example.com/very/long/url").
+					Shorten(gomock.Any(), "user-1", "https://example.com/very/long/url").
 					Return("abc123", nil)
 			},
 			expectedStatus:     http.StatusCreated,
@@ -64,7 +65,7 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			contentType: "text/plain",
 			mockSetup: func(mockURLShortener *mocks.MockUrlShortener) {
 				mockURLShortener.EXPECT().
-					Shorten(gomock.Any(), "https://example.com").
+					Shorten(gomock.Any(), "user-1", "https://example.com").
 					Return("", errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
@@ -75,7 +76,7 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			contentType: "text/plain",
 			mockSetup: func(mockURLShortener *mocks.MockUrlShortener) {
 				mockURLShortener.EXPECT().
-					Shorten(gomock.Any(), "https://example.com").
+					Shorten(gomock.Any(), "user-1", "https://example.com").
 					Return("abc123", urlshortenerservice.ErrorURLConflict)
 			},
 			expectedStatus:     http.StatusConflict,
@@ -87,7 +88,7 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			contentType: "text/plain",
 			mockSetup: func(mockURLShortener *mocks.MockUrlShortener) {
 				mockURLShortener.EXPECT().
-					Shorten(gomock.Any(), "").
+					Shorten(gomock.Any(), "user-1", "").
 					Return("empty123", nil)
 			},
 			expectedStatus:     http.StatusCreated,
@@ -109,6 +110,7 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 			if tc.contentType != "" {
 				req.Header.Set("Content-Type", tc.contentType)
 			}
+			req = req.WithContext(auth.ContextWithUserID(req.Context(), "user-1"))
 
 			// Создаем ResponseRecorder для записи ответа
 			rr := httptest.NewRecorder()
@@ -135,5 +137,23 @@ func TestShortenUrlPostHandler_Handle(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestShortenUrlPostHandler_Handle_Unauthorized(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockURLShortener := mocks.NewMockUrlShortener(ctrl)
+	handler := New("http://localhost:8080", mockURLShortener, slog.Default())
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("https://example.com"))
+	req.Header.Set("Content-Type", "text/plain")
+
+	rr := httptest.NewRecorder()
+	handler.Handle(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
 	}
 }

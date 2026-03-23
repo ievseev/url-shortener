@@ -4,10 +4,13 @@ package expandurlget
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
 type URLShortener interface {
@@ -31,6 +34,11 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	expandedURL, err := c.URLShortener.Expand(r.Context(), shortURL)
 	if err != nil {
+		if errors.Is(err, urlshortenerservice.ErrorURLDeleted) {
+			w.WriteHeader(http.StatusGone)
+			return
+		}
+
 		c.logger.Error("expand service error", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return

@@ -12,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/ievseev/url-shortener/internal/handler/expandurlget/mocks"
+	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
 func TestExpandUrlGetHandler_Handle(t *testing.T) {
@@ -35,6 +36,17 @@ func TestExpandUrlGetHandler_Handle(t *testing.T) {
 			},
 			expectedStatus: http.StatusTemporaryRedirect,
 			expectedHeader: "https://example.com",
+		},
+		{
+			name:     "удаленный URL",
+			shortURL: "deleted",
+			mockSetup: func(mockURLShortener *mocks.MockUrlShortener) {
+				mockURLShortener.EXPECT().
+					Expand(gomock.Any(), "deleted").
+					Return("", urlshortenerservice.ErrorURLDeleted)
+			},
+			expectedStatus: http.StatusGone,
+			expectedHeader: "",
 		},
 		{
 			name:     "ошибка при расширении URL",

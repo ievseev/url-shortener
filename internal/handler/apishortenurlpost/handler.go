@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/ievseev/url-shortener/internal/auth"
 	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
 
@@ -22,7 +23,7 @@ const (
 )
 
 type URLShortener interface {
-	Shorten(ctx context.Context, url string) (string, error)
+	Shorten(ctx context.Context, userID, url string) (string, error)
 }
 
 type Handler struct {
@@ -59,7 +60,13 @@ func (c *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortURL, err := c.URLShortener.Shorten(r.Context(), request.URL)
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	shortURL, err := c.URLShortener.Shorten(r.Context(), userID, request.URL)
 	if err != nil {
 		if errors.Is(err, urlshortenerservice.ErrorURLConflict) {
 			c.writeResponse(w, shortURL, http.StatusConflict)

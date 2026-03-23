@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/ievseev/url-shortener/internal/auth"
 	"github.com/ievseev/url-shortener/internal/handler/apishortenurlpost/mocks"
 	urlshortenerservice "github.com/ievseev/url-shortener/internal/service/urlshortener"
 )
@@ -36,7 +37,7 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 			},
 			mockSetup: func(MockURLShortener *mocks.MockURLShortener) {
 				MockURLShortener.EXPECT().
-					Shorten(gomock.Any(), "https://example.com/very/long/url").
+					Shorten(gomock.Any(), "user-1", "https://example.com/very/long/url").
 					Return("abc123", nil)
 			},
 			expectedResult: &Response{
@@ -50,7 +51,7 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 			},
 			mockSetup: func(MockURLShortener *mocks.MockURLShortener) {
 				MockURLShortener.EXPECT().
-					Shorten(gomock.Any(), "").
+					Shorten(gomock.Any(), "user-1", "").
 					Return("empty123", nil)
 			},
 			expectedResult: &Response{
@@ -64,7 +65,7 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 			},
 			mockSetup: func(MockURLShortener *mocks.MockURLShortener) {
 				MockURLShortener.EXPECT().
-					Shorten(gomock.Any(), "https://example.com/path?param1=value1&param2=value2").
+					Shorten(gomock.Any(), "user-1", "https://example.com/path?param1=value1&param2=value2").
 					Return("param123", nil)
 			},
 			expectedResult: &Response{
@@ -85,6 +86,7 @@ func TestAPIShortenurlPostHandler_Handle_SuccessCases(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBuffer(requestBody))
 			req.Header.Set("Content-Type", "application/json")
+			req = req.WithContext(auth.ContextWithUserID(req.Context(), "user-1"))
 
 			rr := httptest.NewRecorder()
 			handler.Handle(rr, req)
@@ -212,13 +214,14 @@ func TestAPIShortenurlPostHandler_Handle_EmptyJSONObject(t *testing.T) {
 	MockURLShortener := mocks.NewMockURLShortener(ctrl)
 
 	MockURLShortener.EXPECT().
-		Shorten(gomock.Any(), "").
+		Shorten(gomock.Any(), "user-1", "").
 		Return("empty123", nil)
 
 	handler := New(baseURL, MockURLShortener, slog.Default())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.ContextWithUserID(req.Context(), "user-1"))
 
 	rr := httptest.NewRecorder()
 	handler.Handle(rr, req)
@@ -245,13 +248,14 @@ func TestAPIShortenurlPostHandler_Handle_Conflict(t *testing.T) {
 	mockURLShortener := mocks.NewMockURLShortener(ctrl)
 
 	mockURLShortener.EXPECT().
-		Shorten(gomock.Any(), "https://example.com").
+		Shorten(gomock.Any(), "user-1", "https://example.com").
 		Return("abc123", urlshortenerservice.ErrorURLConflict)
 
 	handler := New(baseURL, mockURLShortener, slog.Default())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBufferString(`{"url":"https://example.com"}`))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.ContextWithUserID(req.Context(), "user-1"))
 
 	rr := httptest.NewRecorder()
 	handler.Handle(rr, req)
@@ -303,7 +307,7 @@ func TestAPIShortenurlPostHandler_Handle_ServiceErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			MockURLShortener := mocks.NewMockURLShortener(ctrl)
 			MockURLShortener.EXPECT().
-				Shorten(gomock.Any(), tc.requestBody.URL).
+				Shorten(gomock.Any(), "user-1", tc.requestBody.URL).
 				Return("", tc.serviceError)
 
 			handler := New(baseURL, MockURLShortener, slog.Default())
@@ -313,6 +317,7 @@ func TestAPIShortenurlPostHandler_Handle_ServiceErrors(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBuffer(requestBody))
 			req.Header.Set("Content-Type", "application/json")
+			req = req.WithContext(auth.ContextWithUserID(req.Context(), "user-1"))
 
 			rr := httptest.NewRecorder()
 			handler.Handle(rr, req)
@@ -320,4 +325,19 @@ func TestAPIShortenurlPostHandler_Handle_ServiceErrors(t *testing.T) {
 			assert.Equal(t, http.StatusInternalServerError, rr.Code)
 		})
 	}
+}
+
+func TestAPIShortenurlPostHandler_Handle_Unauthorized(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	handler := New("http://localhost:8080", mocks.NewMockURLShortener(ctrl), slog.Default())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBufferString(`{"url":"https://example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	handler.Handle(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
